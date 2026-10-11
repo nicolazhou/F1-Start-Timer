@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="F1 Start Timer — test your reaction time with Formula 1 starting lights." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="F1 Start Timer" />
+    <meta property="og:title" content="F1 Start Timer" />
+    <meta property="og:description" content="Test your reactions with five Formula 1 starting lights." />
+    <meta name="twitter:card" content="summary" />
+    <title>F1 Start Timer</title>
+    <link rel="icon" href="./public/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./public/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./public/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./public/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./src/style.css" />
+    <script defer src="./src/game.js"></script>
+    <script defer src="./src/main.js"></script>
+  </head>
+  <body>
+    <main id="app">
+      <h1 class="visually-hidden">F1 Start Timer</h1>
+      <div id="game-control" role="button" tabindex="0" aria-describedby="instructions" aria-label="Start reaction time test">
+        <div class="help">
+          <p id="instructions"><em>Click or tap anywhere to start. React as soon as the lights go out!</em></p>
+        </div>
+        <div id="lights-container" role="img" aria-label="0 of 5 light columns illuminated">
+          <div id="connector" aria-hidden="true"></div>
+          <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
+          <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
+          <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
+          <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
+          <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
+        </div>
+        <output class="time" id="result" aria-label="Reaction time">00.000</output>
+        <div id="best">Your best: —</div>
+        <span class="visually-hidden" id="announcement" role="status" aria-live="polite" aria-atomic="true">Press Enter or Space to start.</span>
+      </div>
+      <p class="credits" id="credits" hidden>
+        Created by <a id="creator-link" target="_blank" rel="noopener noreferrer"></a>
+      </p>
+    </main>
+    <noscript>JavaScript is required to play F1 Start Timer.</noscript>
+  </body>
+</html>

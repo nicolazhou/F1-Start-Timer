@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Watches GitHub Actions even though the application has no npm dependencies.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  # Prepares the repository for any future JavaScript dependencies.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
