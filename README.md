@@ -49,3 +49,35 @@ npm run audit
 ```
 
 The application and build scripts have **zero npm dependencies**, so `npm install` is unnecessary. Dependabot monitors GitHub Actions and will also check any future npm dependencies. `npm audit` checks the empty dependency tree; it cannot identify application logic bugs.
+
+## TODO / Roadmap
+
+These are **planned improvements**, not features available in v1.1.0. The original minimalist lights-and-stopwatch design will remain the default.
+
+- [ ] **Multiple languages:** add Italian, Spanish, French and German alongside English, with a manual language switcher and an optional browser-language default.
+- [X] **Optional sound effects:** play a subtle lights-out cue, with a mute toggle and no automatic audio until user interaction.
+- [ ] **Reaction history:** show recent attempts and simple statistics (average, fastest, slowest), stored only on the device.
+- [ ] **Personalization:** provide optional settings for text size, higher contrast and reduced animations.
+- [X] **Share or export results:** let players copy or download their times without requiring accounts or sending data to a server.
+- [ ] **More cross-browser testing:** expand checks for mobile Safari, Firefox, touch interaction and keyboard accessibility.
+
+Ideas and contributions are welcome; none of these changes is required for the current game to work.
+
+## Project layout
+
+```text
+index.html                       Accessible game markup and social metadata
+src/style.css                    Original design and responsive rules
+src/game.js                      Reaction timer and personal-best storage
+src/main.js                      Input, light rendering and announcements
+public/                          Favicon and Apple touch icon
+scripts/site-files.mjs          Shared public-asset allowlist and MIME types
+scripts/serve.mjs                Localhost-only allowlisted development server
+scripts/build.mjs                Dependency-free production build
+scripts/check-source.mjs         Source, syntax and HTML/CSS checks
+scripts/browser-test.mjs         Chrome/Chromium smoke and responsive tests
+scripts/verify-build.mjs         Output/asset verification
+tests/                            Game, storage and server tests
+.github/workflows/pages.yml      GitHub Pages build, tests and deployment
+.github/dependabot.yml           Weekly GitHub Actions and npm update checks
+```
