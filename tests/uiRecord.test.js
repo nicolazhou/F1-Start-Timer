@@ -30,6 +30,7 @@ function createUI() {
     ["setting-contrast", makeElement()],
     ["setting-motion", makeElement()],
     ["setting-scale", makeElement()],
+    ["setting-language", makeElement()],
     ["copy-result", makeElement()],
     ["share-result", makeElement()],
     ["export-results", makeElement()],
@@ -53,11 +54,16 @@ function createUI() {
       },
     },
     location: { hostname: "localhost" },
-    navigator: {},
-    document: { getElementById: (id) => elements.get(id), addEventListener() {}, documentElement: { dataset: {} } },
+    navigator: { language: "en-US", languages: ["en-US"] },
+    document: {
+      getElementById: (id) => elements.get(id),
+      querySelectorAll: () => [], querySelector: () => null, addEventListener() {},
+      documentElement: { dataset: {}, lang: "en" },
+    },
     window: { addEventListener() {} },
     console,
   };
+  runInNewContext(readFileSync("src/i18n.js", "utf8"), context);
   runInNewContext(readFileSync("src/main.js", "utf8"), context);
   const result = (time) => publish({ phase: PHASE.RESULT, litCount: 0, resultMs: time });
   return { result, elements, saved };

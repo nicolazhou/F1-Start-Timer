@@ -3,8 +3,9 @@
   "use strict";
   const core = globalThis.F1StartTimerGame;
   const extras = globalThis.F1StartTimerOptions;
+  const i18n = globalThis.F1StartTimerI18n;
   const root = document.getElementById("game-control");
-  if (!root || !core || !extras) {
+  if (!root || !core || !extras || !i18n) {
     if (root) root.setAttribute("aria-label", "Game scripts failed to load");
     console.error("F1 Start Timer: required scripts were not loaded");
     return;
@@ -21,6 +22,7 @@
   const contrastControl = document.getElementById("setting-contrast");
   const motionControl = document.getElementById("setting-motion");
   const scaleControl = document.getElementById("setting-scale");
+  const languageControl = document.getElementById("setting-language");
   const copyButton = document.getElementById("copy-result");
   const shareButton = document.getElementById("share-result");
   const exportButton = document.getElementById("export-results");
@@ -36,15 +38,54 @@
     document.getElementById("credits").hidden = false;
   }
 
-  let settings = extras.loadSettings();
+  let settings = extras.normalizeSettings(extras.loadSettings());
+  const browserLanguages = navigator.languages?.length ? navigator.languages : [navigator.language];
+  let activeLanguage = i18n.resolveLanguage(settings.language, browserLanguages);
+  const t = (key, params) => i18n.translate(activeLanguage, key, params);
   let history = extras.loadHistory();
   let latestResult = history[0]?.ms ?? null;
   let best = loadBest();
   let announcedPhase = PHASE.IDLE;
+  let currentView = { phase: PHASE.IDLE, litCount: 0, resultMs: null };
   let previousLitCount = 0;
   let audioContext = null;
   let audioUnavailable = false;
-  bestElement.textContent = `Your best: ${formatTime(best)}`;
+  function renderGameTexts(next = currentView, forceAnnouncement = false) {
+    root.setAttribute("aria-label", t({
+      [PHASE.IDLE]: "gameIdle", [PHASE.LIGHTING]: "gameLighting", [PHASE.READY]: "gameReady",
+      [PHASE.RESULT]: "gameResult", [PHASE.FALSE_START]: "gameFalseStart", [PHASE.INTERRUPTED]: "gameInterrupted",
+    }[next.phase]));
+    lights.setAttribute("aria-label", next.phase === PHASE.READY
+      ? t("lightsReady") : t("lightsCount", { count: next.litCount }));
+    if (forceAnnouncement || next.phase !== announcedPhase) announcement.textContent = t({
+      [PHASE.IDLE]: "announceIdle", [PHASE.LIGHTING]: "announceLighting",
+      [PHASE.READY]: "announceReady", [PHASE.RESULT]: "announceResult",
+      [PHASE.FALSE_START]: "announceFalseStart", [PHASE.INTERRUPTED]: "announceInterrupted",
+    }[next.phase]);
+    announcedPhase = next.phase;
+    if (next.phase === PHASE.FALSE_START) score.textContent = t("jumpStart");
+    else if (next.phase === PHASE.INTERRUPTED) score.textContent = t("interrupted");
+    else if (next.phase === PHASE.RESULT) score.textContent = formatTime(next.resultMs);
+    else score.textContent = "00.000";
+    bestElement.textContent = t("best", { time: formatTime(best) });
+  }
+
+  function renderLanguage() {
+    activeLanguage = i18n.resolveLanguage(settings.language, browserLanguages);
+    document.documentElement.lang = activeLanguage;
+    languageControl.value = settings.language;
+    document.querySelectorAll("[data-i18n]").forEach((element) => {
+      element.textContent = t(element.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+      element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+    });
+    const description = document.querySelector('meta[name="description"]');
+    if (description) description.content = t("pageDescription");
+    const ogDescription = document.querySelector('meta[property="og:description"]');
+    if (ogDescription) ogDescription.content = t("ogDescription");
+    renderGameTexts(currentView, true);
+  }
 
   function setStatus(message) { status.textContent = message; }
   function applySettings() {
@@ -52,6 +93,7 @@
     contrastControl.checked = settings.highContrast;
     motionControl.checked = settings.reduceMotion;
     scaleControl.value = String(settings.textScale);
+    languageControl.value = settings.language;
     document.documentElement.dataset.highContrast = String(settings.highContrast);
     document.documentElement.dataset.reduceMotion = String(settings.reduceMotion);
     document.documentElement.dataset.textScale = String(settings.textScale);
@@ -62,6 +104,7 @@
     exportButton.disabled = history.length === 0;
   }
   applySettings();
+  renderLanguage();
   updateResultActions();
 
   // Generate sounds locally using Web Audio; never fetch external media.
@@ -70,10 +113,10 @@
     if (!settings.sound || audioUnavailable) return;
     try {
       const Audio = globalThis.AudioContext || globalThis.webkitAudioContext;
-      if (!Audio) { audioUnavailable = true; setStatus("Audio is unavailable in this browser."); return; }
+      if (!Audio) { audioUnavailable = true; setStatus(t("audioUnavailable")); return; }
       if (!audioContext) audioContext = new Audio();
       if (audioContext.state === "suspended") void audioContext.resume().catch(() => {});
-    } catch { audioUnavailable = true; setStatus("Audio is unavailable in this browser."); }
+    } catch { audioUnavailable = true; setStatus(t("audioUnavailable")); }
   }
   function beep(frequency, duration, offset = 0) {
     if (!settings.sound || !audioContext || audioContext.state !== "running") return;
@@ -106,32 +149,22 @@
       extras.saveSettings(settings);
       applySettings();
       if (key === "sound" && element.checked) { unlockAudio(); playCue("light"); }
-      setStatus(key === "sound" ? (element.checked ? "Sound enabled." : "Sound muted.") : "Preference saved on this device.");
+      setStatus(key === "sound" ? t(element.checked ? "soundOn" : "soundOff") : t("preferenceSaved"));
     });
   }
   scaleControl.addEventListener("change", () => {
     settings = extras.normalizeSettings({ ...settings, textScale: Number(scaleControl.value) });
     extras.saveSettings(settings);
     applySettings();
-    setStatus("Text size updated.");
+    setStatus(t("scaleUpdated"));
   });
 
-  const controlLabels = {
-    [PHASE.IDLE]: "Start reaction time test",
-    [PHASE.LIGHTING]: "Wait for the lights to go out",
-    [PHASE.READY]: "Stop the reaction time clock",
-    [PHASE.RESULT]: "Start another test",
-    [PHASE.FALSE_START]: "Try again after a jump start",
-    [PHASE.INTERRUPTED]: "Restart interrupted test",
-  };
-  const announcements = {
-    [PHASE.IDLE]: "Press Enter or Space to start.",
-    [PHASE.LIGHTING]: "Lights are turning on. Do not react yet.",
-    [PHASE.READY]: "Lights out! React now.",
-    [PHASE.RESULT]: "Reaction time recorded. You can try again.",
-    [PHASE.FALSE_START]: "Jump start! You reacted too early.",
-    [PHASE.INTERRUPTED]: "Test interrupted. Start again.",
-  };
+  languageControl.addEventListener("change", () => {
+    settings = extras.normalizeSettings({ ...settings, language: languageControl.value });
+    extras.saveSettings(settings);
+    renderLanguage();
+    setStatus(t("languageUpdated"));
+  });
 
   const game = createReactionGame({
     onChange(next) {
@@ -141,19 +174,9 @@
         bulbs[2].classList.toggle("on", illuminated);
         bulbs[3].classList.toggle("on", illuminated);
       });
-      lights.setAttribute("aria-label", next.phase === PHASE.READY
-        ? "All five lights are off. Go!"
-        : `${next.litCount} of 5 light columns illuminated`);
-      root.setAttribute("aria-label", controlLabels[next.phase]);
-      if (next.phase !== announcedPhase) {
-        announcement.textContent = announcements[next.phase];
-        announcedPhase = next.phase;
-      }
-      if (next.phase === PHASE.FALSE_START) score.textContent = "JUMP START!";
-      else if (next.phase === PHASE.INTERRUPTED) score.textContent = "INTERRUPTED";
-      else if (next.phase === PHASE.RESULT) score.textContent = formatTime(next.resultMs);
-      else score.textContent = "00.000";
-
+      currentView = next;
+      // Redraw strings in the active language without modifying the game's timing.
+      renderGameTexts(next);
       if (next.phase === PHASE.LIGHTING && next.litCount > previousLitCount) playCue("light");
       if (next.phase === PHASE.READY) playCue("go");
       if (next.phase === PHASE.FALSE_START) playCue("jump");
@@ -166,14 +189,15 @@
         if (isValidRecord(next.resultMs) && (best === null || next.resultMs < best)) {
           best = next.resultMs;
           saveBest(best);
-          bestElement.textContent = `Your best: ${formatTime(best)}`;
+          bestElement.textContent = t("best", { time: formatTime(best) });
         }
       }
     },
   });
 
   function shareMessage() {
-    return extras.shareText(latestResult, best, formatTime);
+    const bestText = best === null ? t("noBestYet") : `${formatTime(best)} s`;
+    return t("shareMessage", { time: formatTime(latestResult), best: bestText });
   }
   async function copyMessage() {
     if (latestResult === null) return;
@@ -194,8 +218,8 @@
         finally { field.remove(); }
         if (!copied) throw new Error("Clipboard unavailable");
       }
-      setStatus("Result copied to clipboard.");
-    } catch { setStatus("Clipboard unavailable. Try Share or Export CSV."); }
+      setStatus(t("copied"));
+    } catch { setStatus(t("copyUnavailable")); }
   }
   copyButton.addEventListener("click", () => { void copyMessage(); });
   shareButton.addEventListener("click", async () => {
@@ -205,9 +229,9 @@
       const shareData = { title: "F1 Start Timer", text: shareMessage() };
       if (location.protocol === "https:") shareData.url = location.href;
       await navigator.share(shareData);
-      setStatus("Result shared.");
+      setStatus(t("shared"));
     } catch (error) {
-      if (error?.name !== "AbortError") setStatus("Sharing unavailable. Try Copy result.");
+      if (error?.name !== "AbortError") setStatus(t("sharingUnavailable"));
     }
   });
   exportButton.addEventListener("click", () => {
@@ -221,7 +245,7 @@
     anchor.click();
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setStatus(`Exported ${history.length} result${history.length === 1 ? "" : "s"} as CSV.`);
+    setStatus(t(history.length === 1 ? "exportedOne" : "exportedMany", { count: history.length }));
   });
 
   function activate() {
@@ -229,6 +253,29 @@
     unlockAudio();
     game.activate();
   }
+
+  // Show the subtle focus hint only if Tab navigated into the game.
+  // Enter/Space during gameplay and pointer interactions keep the classic look.
+  let tabNavigationPending = false;
+  function clearTabFocus() {
+    tabNavigationPending = false;
+    root.classList.remove("tab-navigation");
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      tabNavigationPending = true;
+    } else {
+      clearTabFocus();
+    }
+  }, true);
+  document.addEventListener("keyup", (event) => {
+    if (event.key === "Tab") tabNavigationPending = false;
+  }, true);
+  root.addEventListener("focus", () => {
+    root.classList.toggle("tab-navigation", tabNavigationPending);
+  });
+  root.addEventListener("blur", clearTabFocus);
+  document.addEventListener("pointerdown", clearTabFocus, true);
   document.addEventListener("pointerdown", (event) => {
     // Settings, export controls and the author credit must never start the game.
     if (event.target.closest("#extras, #credits")) return;

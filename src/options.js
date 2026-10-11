@@ -4,7 +4,7 @@
   const SETTINGS_KEY = "f1-start-timer:settings";
   const HISTORY_KEY = "f1-start-timer:history";
   const MAX_HISTORY = 50;
-  const defaults = Object.freeze({ sound: false, highContrast: false, reduceMotion: false, textScale: 100 });
+  const defaults = Object.freeze({ sound: false, highContrast: false, reduceMotion: false, textScale: 100, language: "auto" });
 
   function getStorage(storage) {
     return storage === undefined ? root.localStorage : storage;
@@ -16,6 +16,7 @@
       highContrast: value.highContrast === true,
       reduceMotion: value.reduceMotion === true,
       textScale: [100, 125, 150].includes(value.textScale) ? value.textScale : 100,
+      language: ["auto", "en", "it", "es", "fr", "de"].includes(value.language) ? value.language : "auto",
     };
   }
   function loadSettings(storage) {

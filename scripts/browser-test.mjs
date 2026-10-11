@@ -92,7 +92,7 @@ async function run() {
     const port = server.address().port;
     let restrictedBrowser = false;
     const args = ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
-      "--remote-debugging-port=0", `--user-data-dir=${dir}`, "about:blank"];
+      "--lang=en-US", "--remote-debugging-port=0", `--user-data-dir=${dir}`, "about:blank"];
     proc = spawn(chrome, args, { stdio: "ignore" });
     let debuggingPort;
     for (let i = 0; i < 100; i++) {
@@ -110,7 +110,7 @@ async function run() {
     await cdp.send("Runtime.enable");
     await cdp.send("Page.enable");
     await cdp.send("Network.enable");
-    await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: "Math.random = () => 0;" });
+    await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: "Math.random = () => 0; Object.defineProperty(navigator, 'languages', {get: () => ['en-US']}); Object.defineProperty(navigator, 'language', {get: () => 'en-US'});" });
 
     for (const path of ["/", "/f1-start-timer/"]) {
       cdp.errors = [];
@@ -130,6 +130,7 @@ async function run() {
         await cdp.evaluate(`document.head.appendChild(Object.assign(document.createElement('style'),{textContent:${JSON.stringify(css)}}));`);
         await cdp.evaluate(await readFile("dist/src/game.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/options.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/i18n.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/main.js", "utf8"));
       } else if (navigation.errorText) {
         throw new Error(`Navigation failed for ${path}: ${navigation.errorText}`);
@@ -174,6 +175,8 @@ async function run() {
       }
       assert.ok(await cdp.evaluate("document.getElementById('extras') !== null"));
       assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
+      assert.equal(await cdp.evaluate("document.getElementById('setting-language').value"), "auto");
+      assert.equal(await cdp.evaluate("document.documentElement.lang"), "en");
       assert.equal(await cdp.evaluate("document.getElementById('copy-result').disabled"), true);
       assert.equal(await cdp.evaluate("document.getElementById('export-results').disabled"), true);
       assert.deepEqual(cdp.errors, [], `Startup errors on ${path}`);
@@ -219,6 +222,62 @@ async function run() {
     assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
     if (!restrictedBrowser) assert.equal(await cdp.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).textScale"), 150);
 
+    // Switching language must update every UI surface without starting a round.
+    await cdp.evaluate(`(() => {
+      const language = document.getElementById('setting-language');
+      language.value = 'it';
+      language.dispatchEvent(new Event('change', {bubbles:true}));
+      document.getElementById('extras').open = true;
+    })()`);
+    assert.equal(await cdp.evaluate("document.documentElement.lang"), "it");
+    assert.match(await cdp.evaluate("document.getElementById('instructions').textContent"), /Clicca o tocca/);
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), "Inizia il test dei riflessi");
+    assert.equal(await cdp.evaluate("document.getElementById('best').textContent"), "Il tuo record: —");
+    assert.equal(await cdp.evaluate("document.getElementById('copy-result').textContent"), "Copia il risultato");
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), "Inizia il test dei riflessi");
+    for (const language of ['it', 'es', 'fr', 'de', 'en']) {
+      await cdp.evaluate(`(() => {
+        const select = document.getElementById('setting-language');
+        select.value = ${JSON.stringify(language)};
+        select.dispatchEvent(new Event('change', {bubbles:true}));
+      })()`);
+      for (const width of [320, 375, 600, 1280]) {
+        await cdp.send("Emulation.setDeviceMetricsOverride", { width, height: 720, deviceScaleFactor: 1, mobile: width < 601 });
+        assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"),
+          `Horizontal overflow with ${language} at ${width}px`);
+      }
+    }
+    assert.equal(await cdp.evaluate("document.documentElement.lang"), "en");
+    assert.equal(await cdp.evaluate("document.getElementById('setting-language').value"), "en");
+    if (!restrictedBrowser) assert.equal(await cdp.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).language"), "en");
+    await cdp.evaluate("document.getElementById('extras').open = false");
+
+    // Only a Tab navigation into the game may show the subtle underline.
+    // FocusEvent simulates Tab's focus transition in restricted headless Chrome.
+    await cdp.evaluate(`(() => {
+      const game = document.getElementById('game-control');
+      document.dispatchEvent(new KeyboardEvent('keydown', {key:'Tab', bubbles:true}));
+      game.dispatchEvent(new FocusEvent('focus'));
+      document.dispatchEvent(new KeyboardEvent('keyup', {key:'Tab', bubbles:true}));
+    })()`);
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').classList.contains('tab-navigation')"), true,
+      "Tab navigation should enable the subtle focus hint");
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('instructions')).textDecorationLine"), "underline",
+      "Tab-focused game should underline the instructions");
+    await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('instructions')).textDecorationLine"), "none",
+      "Any other keyboard command must clear the Tab-only underline");
+    await cdp.evaluate(`(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', {key:'Tab', bubbles:true}));
+      document.getElementById('game-control').dispatchEvent(new FocusEvent('focus'));
+      document.getElementById('extras').dispatchEvent(new PointerEvent('pointerdown', {button:0,isPrimary:true,bubbles:true}));
+    })()`);
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('instructions')).textDecorationLine"), "none",
+      "Pointer interaction must clear the hint without starting a game");
+    await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new FocusEvent('blur'))");
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').classList.contains('tab-navigation')"), false,
+      "Focus hint must clear on blur");
+
     // Keyboard + pointer interactions at 320px, false start and full round.
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 320, height: 700, deviceScaleFactor: 1, mobile: true });
     assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), "Mobile horizontal overflow");
@@ -253,6 +312,23 @@ async function run() {
     await cdp.until("typeof globalThis.__sharedResult?.text === 'string' && typeof globalThis.__copiedResult === 'string'");
     assert.match(await cdp.evaluate("globalThis.__sharedResult.text"), /My F1 Start Timer reaction:/);
     assert.equal(await cdp.evaluate("globalThis.__sharedResult.text === globalThis.__copiedResult"), true);
+    // A completed time and copy/share payload must translate without resetting the record.
+    const resultBeforeTranslation = await cdp.evaluate("document.getElementById('result').textContent");
+    await cdp.evaluate(`(() => {
+      const lang = document.getElementById('setting-language');
+      lang.value = 'fr';
+      lang.dispatchEvent(new Event('change', {bubbles: true}));
+      document.getElementById('share-result').click();
+    })()`);
+    await cdp.until("globalThis.__sharedResult?.text?.startsWith('Mon temps de réaction')");
+    assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), resultBeforeTranslation);
+    assert.match(await cdp.evaluate("document.getElementById('best').textContent"), /^Votre record/);
+    assert.equal(await cdp.evaluate("document.documentElement.lang"), "fr");
+    await cdp.evaluate(`(() => {
+      const lang = document.getElementById('setting-language');
+      lang.value = 'en';
+      lang.dispatchEvent(new Event('change', {bubbles: true}));
+    })()`);
     await cdp.evaluate("document.getElementById('export-results').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
     assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), "Start another test", "Export control must not start another round");
     if (!restrictedBrowser) {

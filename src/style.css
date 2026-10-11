@@ -27,10 +27,11 @@ html, body { height: 100%; width: 100%; margin: 0; }
   cursor: default;
   touch-action: manipulation;
 }
-/* Remove the blue game-sized focus border while keeping subtle keyboard feedback. */
+/* Only indicate keyboard navigation when Tab moves focus into the game.
+   Playing with Enter/Space or clicking must not underline the instructions. */
 #game-control:focus,
 #game-control:focus-visible { outline: none; }
-#game-control:focus-visible .help p {
+#game-control.tab-navigation .help p {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;

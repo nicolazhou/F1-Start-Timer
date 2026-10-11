@@ -54,7 +54,7 @@ The application and build scripts have **zero npm dependencies**, so `npm instal
 
 These are **planned improvements**, not features available in v1.1.0. The original minimalist lights-and-stopwatch design will remain the default.
 
-- [ ] **Multiple languages:** add Italian, Spanish, French and German alongside English, with a manual language switcher and an optional browser-language default.
+- [X] **Multiple languages:** add Italian, Spanish, French and German alongside English, with a manual language switcher and an optional browser-language default.
 - [X] **Optional sound effects:** play a subtle lights-out cue, with a mute toggle and no automatic audio until user interaction.
 - [ ] **Reaction history:** show recent attempts and simple statistics (average, fastest, slowest), stored only on the device.
 - [ ] **Personalization:** provide optional settings for text size, higher contrast and reduced animations.

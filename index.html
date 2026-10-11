@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="./src/style.css" />
     <script defer src="./src/game.js"></script>
     <script defer src="./src/options.js"></script>
+    <script defer src="./src/i18n.js"></script>
     <script defer src="./src/main.js"></script>
   </head>
   <body>
@@ -25,7 +26,7 @@
       <h1 class="visually-hidden">F1 Start Timer</h1>
       <div id="game-control" role="button" tabindex="0" aria-describedby="instructions" aria-label="Start reaction time test">
         <div class="help">
-          <p id="instructions"><em>Click or tap anywhere to start. React as soon as the lights go out!</em></p>
+          <p id="instructions"><em data-i18n="instructions">Click or tap anywhere to start. React as soon as the lights go out!</em></p>
         </div>
         <div id="lights-container" role="img" aria-label="0 of 5 light columns illuminated">
           <div id="connector" aria-hidden="true"></div>
@@ -35,35 +36,45 @@
           <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
           <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
         </div>
-        <output class="time" id="result" aria-label="Reaction time">00.000</output>
+        <output class="time" id="result" aria-label="Reaction time" data-i18n-aria-label="reactionTime">00.000</output>
         <div id="best">Your best: —</div>
         <span class="visually-hidden" id="announcement" role="status" aria-live="polite" aria-atomic="true">Press Enter or Space to start.</span>
       </div>
       <p class="credits" id="credits" hidden>
-        Created by <a id="creator-link" target="_blank" rel="noopener noreferrer"></a>
+        <span data-i18n="createdBy">Created by</span> <a id="creator-link" target="_blank" rel="noopener noreferrer"></a>
       </p>
       <details class="extras" id="extras">
-        <summary>Settings &amp; Results</summary>
+        <summary data-i18n="settingsTitle">Settings &amp; Results</summary>
         <div class="extras-content">
           <fieldset>
-            <legend>Preferences</legend>
-            <label class="setting"><input type="checkbox" id="setting-sound" /> Sound effects</label>
-            <label class="setting"><input type="checkbox" id="setting-contrast" /> High contrast</label>
-            <label class="setting"><input type="checkbox" id="setting-motion" /> Reduce motion</label>
-            <label class="setting setting-select" for="setting-scale">Text size
+            <legend data-i18n="preferences">Preferences</legend>
+            <label class="setting"><input type="checkbox" id="setting-sound" /> <span data-i18n="sound">Sound effects</span></label>
+            <label class="setting"><input type="checkbox" id="setting-contrast" /> <span data-i18n="contrast">High contrast</span></label>
+            <label class="setting"><input type="checkbox" id="setting-motion" /> <span data-i18n="motion">Reduce motion</span></label>
+            <label class="setting setting-select" for="setting-scale"><span data-i18n="textSize">Text size</span>
               <select id="setting-scale">
-                <option value="100">Default</option>
-                <option value="125">Large</option>
-                <option value="150">Extra large</option>
+                <option value="100" data-i18n="sizeDefault">Default</option>
+                <option value="125" data-i18n="sizeLarge">Large</option>
+                <option value="150" data-i18n="sizeExtraLarge">Extra large</option>
+              </select>
+            </label>
+            <label class="setting setting-select" for="setting-language"><span data-i18n="language">Language</span>
+              <select id="setting-language">
+                <option value="auto" data-i18n="autoLanguage">Automatic (browser)</option>
+                <option value="en">English</option>
+                <option value="it">Italiano</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
               </select>
             </label>
           </fieldset>
-          <div class="result-actions" aria-label="Save and share results">
-            <button type="button" id="copy-result" disabled>Copy result</button>
-            <button type="button" id="share-result" disabled>Share result</button>
-            <button type="button" id="export-results" disabled>Export CSV</button>
+          <div class="result-actions" aria-label="Save and share results" data-i18n-aria-label="resultsActions">
+            <button type="button" id="copy-result" disabled data-i18n="copy">Copy result</button>
+            <button type="button" id="share-result" disabled data-i18n="share">Share result</button>
+            <button type="button" id="export-results" disabled data-i18n="export">Export CSV</button>
           </div>
-          <p class="extras-hint">Up to 50 recent results are kept on this device. Audio is off by default.</p>
+          <p class="extras-hint" data-i18n="hint">Up to 50 recent results are kept on this device. Audio is off by default.</p>
           <p id="extras-status" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
       </details>

@@ -16,14 +16,14 @@ function store(seed = {}) {
 }
 
 test("settings default to silent, classic styling and normal text", () => {
-  assert.deepEqual(p.loadSettings(store()), { sound: false, highContrast: false, reduceMotion: false, textScale: 100 });
+  assert.deepEqual(p.loadSettings(store()), { sound: false, highContrast: false, reduceMotion: false, textScale: 100, language: "auto" });
   const bad = { sound: "yes", highContrast: true, reduceMotion: 1, textScale: 999 };
-  assert.deepEqual(p.normalizeSettings(bad), { sound: false, highContrast: true, reduceMotion: false, textScale: 100 });
+  assert.deepEqual(p.normalizeSettings(bad), { sound: false, highContrast: true, reduceMotion: false, textScale: 100, language: "auto" });
 });
 
 test("settings round-trip and tolerate corrupted / blocked localStorage", () => {
   const storage = store();
-  const settings = { sound: true, highContrast: true, reduceMotion: true, textScale: 150 };
+  const settings = { sound: true, highContrast: true, reduceMotion: true, textScale: 150, language: "fr" };
   assert.equal(p.saveSettings(settings, storage), true);
   assert.deepEqual(p.loadSettings(storage), settings);
   storage.values.set(p.SETTINGS_KEY, "{bad json");
