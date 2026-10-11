@@ -129,6 +129,7 @@ async function run() {
         const css = await readFile("dist/src/style.css", "utf8");
         await cdp.evaluate(`document.head.appendChild(Object.assign(document.createElement('style'),{textContent:${JSON.stringify(css)}}));`);
         await cdp.evaluate(await readFile("dist/src/game.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/options.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/main.js", "utf8"));
       } else if (navigation.errorText) {
         throw new Error(`Navigation failed for ${path}: ${navigation.errorText}`);
@@ -171,6 +172,10 @@ async function run() {
         assert.equal(creator.href, null, "Hidden creator credit must not contain a stale profile link");
         assert.equal(creator.label, "", "Hidden creator credit must not show a placeholder username");
       }
+      assert.ok(await cdp.evaluate("document.getElementById('extras') !== null"));
+      assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
+      assert.equal(await cdp.evaluate("document.getElementById('copy-result').disabled"), true);
+      assert.equal(await cdp.evaluate("document.getElementById('export-results').disabled"), true);
       assert.deepEqual(cdp.errors, [], `Startup errors on ${path}`);
       console.log(`Browser boot check passed: ${path}`);
     }
@@ -186,10 +191,39 @@ async function run() {
     await cdp.evaluate("document.getElementById('creator-link').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
     assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), phaseBeforeCreatorPress, "Creator link must not start the clock");
 
+    // Settings are separate from gameplay, are saved locally and must never
+    // count as a false start. Check extreme text scaling at phone widths.
+    await cdp.evaluate(`(() => {
+      const setting = document.getElementById('setting-contrast');
+      setting.dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}));
+      setting.checked = true;
+      setting.dispatchEvent(new Event('change', {bubbles:true}));
+      const scale = document.getElementById('setting-scale');
+      scale.value = '150';
+      scale.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), "Start reaction time test", "Settings interaction must not begin a game");
+    assert.equal(await cdp.evaluate("document.documentElement.dataset.highContrast"), "true");
+    assert.equal(await cdp.evaluate("document.documentElement.dataset.textScale"), "150");
+    await cdp.evaluate(`(() => {
+      const sound = document.getElementById('setting-sound');
+      sound.checked = true;
+      sound.dispatchEvent(new Event('change', {bubbles:true}));
+      sound.checked = false;
+      sound.dispatchEvent(new Event('change', {bubbles:true}));
+      const motion = document.getElementById('setting-motion');
+      motion.checked = true;
+      motion.dispatchEvent(new Event('change', {bubbles:true}));
+    })()`);
+    assert.equal(await cdp.evaluate("document.documentElement.dataset.reduceMotion"), "true");
+    assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
+    if (!restrictedBrowser) assert.equal(await cdp.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).textScale"), 150);
+
     // Keyboard + pointer interactions at 320px, false start and full round.
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 320, height: 700, deviceScaleFactor: 1, mobile: true });
     assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), "Mobile horizontal overflow");
     await cdp.evaluate("document.getElementById('game-control').focus(); document.getElementById('game-control').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));");
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('game-control')).outlineStyle"), "none", "Keyboard input must not draw a blue frame around the game");
     assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on').length"), 2);
     await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new KeyboardEvent('keydown', {key:' ', bubbles:true}));");
     assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), "JUMP START!");
@@ -202,6 +236,25 @@ async function run() {
     const score = await cdp.evaluate("document.getElementById('result').textContent");
     assert.match(score, /^\d{2}\.\d{3}$/);
     assert.notEqual(await cdp.evaluate("document.getElementById('best').textContent"), "Your best: —");
+    assert.equal(await cdp.evaluate("document.getElementById('copy-result').disabled"), false);
+    assert.equal(await cdp.evaluate("document.getElementById('share-result').disabled"), false);
+    assert.equal(await cdp.evaluate("document.getElementById('export-results').disabled"), false);
+    if (!restrictedBrowser) assert.match(await cdp.evaluate("localStorage.getItem('f1-start-timer:history')"), /at|ms/);
+    await cdp.evaluate(`(() => {
+      Object.defineProperty(navigator, 'share', {
+        configurable:true, value: async (data) => { globalThis.__sharedResult = data; },
+      });
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable:true, value: { writeText: async (value) => { globalThis.__copiedResult = value; } },
+      });
+      document.getElementById('share-result').click();
+      document.getElementById('copy-result').click();
+    })()`);
+    await cdp.until("typeof globalThis.__sharedResult?.text === 'string' && typeof globalThis.__copiedResult === 'string'");
+    assert.match(await cdp.evaluate("globalThis.__sharedResult.text"), /My F1 Start Timer reaction:/);
+    assert.equal(await cdp.evaluate("globalThis.__sharedResult.text === globalThis.__copiedResult"), true);
+    await cdp.evaluate("document.getElementById('export-results').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), "Start another test", "Export control must not start another round");
     if (!restrictedBrowser) {
       await cdp.send("Page.reload", { ignoreCache: true });
       await cdp.until("document.readyState === 'complete' && document.getElementById('best')?.textContent !== 'Your best: —'");

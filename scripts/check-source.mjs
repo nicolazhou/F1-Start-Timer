@@ -5,10 +5,10 @@ import { readFileSync } from "node:fs";
 // Dependency-free project-specific lint: syntax, unsafe DOM APIs,
 // formatting, valid static HTML references and accessible controls.
 const scripts = [
-  "src/game.js", "src/main.js", "scripts/build.mjs", "scripts/site-files.mjs", "scripts/verify-build.mjs",
+  "src/game.js", "src/options.js", "src/main.js", "scripts/build.mjs", "scripts/site-files.mjs", "scripts/verify-build.mjs",
   "scripts/serve.mjs", "scripts/check-source.mjs", "scripts/browser-test.mjs",
   "tests/reactionGame.test.js", "tests/storage.test.js", "tests/server.test.js",
-  "tests/uiRecord.test.js",
+  "tests/uiRecord.test.js", "tests/options.test.js",
 ];
 for (const script of scripts) {
   execFileSync(process.execPath, ["--check", script], { stdio: "pipe" });

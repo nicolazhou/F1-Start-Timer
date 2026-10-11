@@ -17,6 +17,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./public/apple-touch-icon.png" />
     <link rel="stylesheet" href="./src/style.css" />
     <script defer src="./src/game.js"></script>
+    <script defer src="./src/options.js"></script>
     <script defer src="./src/main.js"></script>
   </head>
   <body>
@@ -41,6 +42,31 @@
       <p class="credits" id="credits" hidden>
         Created by <a id="creator-link" target="_blank" rel="noopener noreferrer"></a>
       </p>
+      <details class="extras" id="extras">
+        <summary>Settings &amp; Results</summary>
+        <div class="extras-content">
+          <fieldset>
+            <legend>Preferences</legend>
+            <label class="setting"><input type="checkbox" id="setting-sound" /> Sound effects</label>
+            <label class="setting"><input type="checkbox" id="setting-contrast" /> High contrast</label>
+            <label class="setting"><input type="checkbox" id="setting-motion" /> Reduce motion</label>
+            <label class="setting setting-select" for="setting-scale">Text size
+              <select id="setting-scale">
+                <option value="100">Default</option>
+                <option value="125">Large</option>
+                <option value="150">Extra large</option>
+              </select>
+            </label>
+          </fieldset>
+          <div class="result-actions" aria-label="Save and share results">
+            <button type="button" id="copy-result" disabled>Copy result</button>
+            <button type="button" id="share-result" disabled>Share result</button>
+            <button type="button" id="export-results" disabled>Export CSV</button>
+          </div>
+          <p class="extras-hint">Up to 50 recent results are kept on this device. Audio is off by default.</p>
+          <p id="extras-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        </div>
+      </details>
     </main>
     <noscript>JavaScript is required to play F1 Start Timer.</noscript>
   </body>

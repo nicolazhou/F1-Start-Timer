@@ -3,6 +3,7 @@
 export const SITE_FILES = new Map([
   ["index.html", "text/html; charset=utf-8"],
   ["src/game.js", "text/javascript; charset=utf-8"],
+  ["src/options.js", "text/javascript; charset=utf-8"],
   ["src/main.js", "text/javascript; charset=utf-8"],
   ["src/style.css", "text/css; charset=utf-8"],
   ["public/favicon.ico", "image/x-icon"],

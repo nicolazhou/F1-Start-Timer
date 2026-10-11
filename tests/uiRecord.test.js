@@ -3,13 +3,15 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import "../src/game.js";
+import "../src/options.js";
 
 const { PHASE, isValidRecord } = globalThis.F1StartTimerGame;
 
 function createUI() {
   const saved = [];
   let publish;
-  const makeElement = () => ({ textContent: "", setAttribute() {}, addEventListener() {} });
+  const makeElement = () => ({ textContent: "", checked: false, value: "100", disabled: false,
+    setAttribute() {}, addEventListener() {} });
   const root = makeElement();
   const bulbs = Array.from({ length: 5 }, () => Array.from({ length: 4 }, () => ({
     classList: { toggle() {} },
@@ -23,9 +25,23 @@ function createUI() {
     ["announcement", makeElement()],
     ["credits", { hidden: true }],
     ["creator-link", makeElement()],
+    ["extras-status", makeElement()],
+    ["setting-sound", makeElement()],
+    ["setting-contrast", makeElement()],
+    ["setting-motion", makeElement()],
+    ["setting-scale", makeElement()],
+    ["copy-result", makeElement()],
+    ["share-result", makeElement()],
+    ["export-results", makeElement()],
   ]);
   const context = {
     globalThis: {
+      F1StartTimerOptions: {
+        ...globalThis.F1StartTimerOptions,
+        loadSettings: () => ({ sound: false, highContrast: false, reduceMotion: false, textScale: 100 }),
+        loadHistory: () => [],
+        recordAttempt: (history, ms) => [{ at: "2026-10-11T12:00:00.000Z", ms }, ...history],
+      },
       F1StartTimerGame: {
         ...globalThis.F1StartTimerGame,
         loadBest: () => null,
@@ -37,7 +53,8 @@ function createUI() {
       },
     },
     location: { hostname: "localhost" },
-    document: { getElementById: (id) => elements.get(id), addEventListener() {} },
+    navigator: {},
+    document: { getElementById: (id) => elements.get(id), addEventListener() {}, documentElement: { dataset: {} } },
     window: { addEventListener() {} },
     console,
   };
