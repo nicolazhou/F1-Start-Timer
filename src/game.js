@@ -149,6 +149,9 @@ function createReactionGame({
     interrupt,
     dispose,
     getState: () => ({ ...snapshot }),
+    // UI-only readout, sampled from the same monotonic clock as the final result.
+    getElapsedMs: () => !disposed && snapshot.phase === PHASE.READY && reactionStart !== null
+      ? Math.max(0, now() - reactionStart) : null,
   };
 }
 

@@ -37,7 +37,7 @@
           <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
           <div class="light-container" aria-hidden="true"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
         </div>
-        <output class="time" id="result" aria-label="Reaction time" data-i18n-aria-label="reactionTime">00.000</output>
+        <output class="time" id="result" aria-live="off" aria-label="Reaction time" data-i18n-aria-label="reactionTime">00.000</output>
         <div id="best">Your best: —</div>
         <span class="visually-hidden" id="announcement" role="status" aria-live="polite" aria-atomic="true">Press Enter or Space to start.</span>
       </div>
@@ -70,6 +70,7 @@
                 <label class="setting setting-toggle"><span data-i18n="contrast">High contrast</span><input class="switch-control" type="checkbox" id="setting-contrast" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-toggle"><span data-i18n="motion">Reduce motion</span><input class="switch-control" type="checkbox" id="setting-motion" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-toggle"><span data-i18n="greenLights">Green lights when lights go out</span><input class="switch-control" type="checkbox" id="setting-green-lights" /><span class="switch-track" aria-hidden="true"></span></label>
+                <label class="setting setting-toggle"><span data-i18n="liveTimer">Show live reaction timer</span><input class="switch-control" type="checkbox" id="setting-live-timer" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-select" for="setting-scale"><span data-i18n="textSize">Text size</span>
                   <select id="setting-scale">
                     <option value="100" data-i18n="sizeDefault">Default</option>

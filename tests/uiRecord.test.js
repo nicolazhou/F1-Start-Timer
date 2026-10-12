@@ -10,6 +10,9 @@ const { PHASE, isValidRecord } = globalThis.F1StartTimerGame;
 function createUI() {
   const saved = [];
   let publish;
+  let elapsed = 0;
+  let nextFrameId = 0;
+  const frames = new Map();
   const makeElement = () => {
     const listeners = new Map();
     return { textContent: "", checked: false, value: "100", disabled: false,
@@ -37,6 +40,7 @@ function createUI() {
     ["setting-contrast", makeElement()],
     ["setting-motion", makeElement()],
     ["setting-green-lights", makeElement()],
+    ["setting-live-timer", makeElement()],
     ["setting-scale", makeElement()],
     ["setting-language", makeElement()],
     ["copy-result", makeElement()],
@@ -64,7 +68,7 @@ function createUI() {
         saveBest: (time) => { saved.push(time); return true; },
         createReactionGame({ onChange }) {
           publish = onChange;
-          return { activate() {}, interrupt() {} };
+          return { activate() {}, interrupt() {}, getElapsedMs: () => elapsed };
         },
       },
     },
@@ -77,11 +81,16 @@ function createUI() {
     },
     window: { addEventListener() {} },
     console,
+    requestAnimationFrame: (callback) => { const id = ++nextFrameId; frames.set(id, callback); return id; },
+    cancelAnimationFrame: (id) => frames.delete(id),
   };
   runInNewContext(readFileSync("src/i18n.js", "utf8"), context);
   runInNewContext(readFileSync("src/main.js", "utf8"), context);
   const result = (time) => publish({ phase: PHASE.RESULT, litCount: 0, resultMs: time });
   return { result, elements, saved, bulbs,
+    setElapsed: (value) => { elapsed = value; },
+    pendingFrames: () => frames.size,
+    paint: () => { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach((cb) => cb()); },
     phase: (phase, litCount = 0) => publish({ phase, litCount, resultMs: null }),
   };
 }
@@ -137,4 +146,42 @@ test("optional green lights use only upper rows during the GO window", () => {
     "green lights turn off after the player reacts");
   ui.phase(PHASE.FALSE_START);
   assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("green")).length, 0);
+});
+
+test("live timer is off by default, updates only at GO and freezes at final reaction", () => {
+  const ui = createUI();
+  const control = ui.elements.get("setting-live-timer");
+  assert.equal(control.checked, false);
+  ui.phase(PHASE.LIGHTING, 5);
+  assert.equal(ui.pendingFrames(), 0);
+  ui.setElapsed(40);
+  ui.phase(PHASE.READY);
+  assert.equal(ui.elements.get("result").textContent, "00.000");
+  assert.equal(ui.pendingFrames(), 0, "disabled by default must not animate");
+
+  control.checked = true;
+  control.fire("change");
+  assert.equal(ui.elements.get("result").textContent, "00.040");
+  assert.equal(ui.pendingFrames(), 1);
+  ui.setElapsed(234.65);
+  ui.paint();
+  assert.equal(ui.elements.get("result").textContent, "00.235");
+  assert.equal(ui.pendingFrames(), 1);
+  ui.result(245.7);
+  assert.equal(ui.elements.get("result").textContent, "00.246");
+  assert.equal(ui.pendingFrames(), 0, "result stops visual updates");
+  ui.setElapsed(5000);
+  ui.paint();
+  assert.equal(ui.elements.get("result").textContent, "00.246");
+  ui.phase(PHASE.LIGHTING, 1);
+  assert.equal(ui.elements.get("result").textContent, "00.000");
+  assert.equal(ui.pendingFrames(), 0);
+  ui.phase(PHASE.READY);
+  assert.equal(ui.pendingFrames(), 1);
+  control.checked = false;
+  control.fire("change");
+  assert.equal(ui.elements.get("result").textContent, "00.000");
+  assert.equal(ui.pendingFrames(), 0, "switching off cancels rendering");
+  ui.phase(PHASE.INTERRUPTED);
+  assert.equal(ui.pendingFrames(), 0);
 });

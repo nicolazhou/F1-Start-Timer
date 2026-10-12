@@ -43,7 +43,7 @@ html, body { height: 100%; width: 100%; margin: 0; }
 .light.on { background: #ff1801; }
 /* Optional GO indicator: the upper two lights of each column turn green. */
 .light.green { background: #19d15b; }
-.time { display: block; margin-top: 0; margin-bottom: .5rem; font-weight: 300; line-height: 1.2; }
+.time { display: block; margin-top: 0; margin-bottom: .5rem; font-weight: 300; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .help p { margin-top: 0; margin-bottom: 1rem; }
 .credits { margin: 12px 0 0; text-align: center; font-size: 12px; color: #888; }
 .credits a { color: inherit; text-decoration: none; cursor: pointer; }

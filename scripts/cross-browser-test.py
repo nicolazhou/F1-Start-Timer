@@ -116,6 +116,7 @@ def run_engine(browser_type, base, engine_name):
         assert page.evaluate("document.documentElement.classList.contains('settings-open')")
         assert page.locator("#setting-sound").get_attribute("type") == "checkbox"
         expect(page.locator("#setting-green-lights")).not_to_be_checked()
+        expect(page.locator("#setting-live-timer")).not_to_be_checked()
         expect(page.locator(".light.green")).to_have_count(0)
         assert page.locator("#setting-sound + .switch-track").count() == 1
         assert page.locator("#setting-sound").get_attribute("aria-hidden") is None
@@ -142,6 +143,8 @@ def run_engine(browser_type, base, engine_name):
         green = page.locator("#setting-green-lights")
         green.check()
         expect(green).to_be_checked()
+        page.locator("#setting-live-timer").check()
+        expect(page.locator("#setting-live-timer")).to_be_checked()
         assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).greenLights") is True
         contrast = page.locator("#setting-contrast")
         contrast.check()
@@ -167,6 +170,8 @@ def run_engine(browser_type, base, engine_name):
         assert page.evaluate("document.documentElement.dataset.highContrast") == "true"
         assert page.evaluate("document.documentElement.dataset.textScale") == "150"
         expect(page.locator("#setting-green-lights")).to_be_checked()
+        expect(page.locator("#setting-live-timer")).to_be_checked()
+        assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).liveTimer") is True
         assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).language") == "it"
         page.locator("#extras summary").click()
         page.locator("#setting-language").select_option("en")
@@ -198,9 +203,14 @@ def run_engine(browser_type, base, engine_name):
         expect(page.locator(".light.on")).to_have_count(0)
         assert "green" in page.locator("#lights-container").get_attribute("aria-label").lower()
         page.wait_for_timeout(110)
+        live_value = page.locator("#result").inner_text()
+        assert live_value not in ("00.000", "JUMP START!"), "Timer must count up at lights-out"
         page.keyboard.press("Space")
         expect(page.locator(".light.green")).to_have_count(0)
         assert page.locator("#result").inner_text() not in ("00.000", "JUMP START!")
+        final_value = page.locator("#result").inner_text()
+        page.wait_for_timeout(70)
+        assert page.locator("#result").inner_text() == final_value, "Timer must freeze at reaction"
         expect(page.locator("#copy-result")).to_be_enabled()
         expect(page.locator("#export-results")).to_be_enabled()
         expect(page.locator("#trials-stat")).to_have_text("1")

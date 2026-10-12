@@ -81,6 +81,49 @@ class Cdp {
   close() { this.ws.close(); }
 }
 
+// Ask the operating system for an unused port instead of relying on Chrome's
+// DevToolsActivePort file. Some CI Chrome builds never write that file even
+// though the HTTP DevTools endpoint is available.
+async function reserveDebugPort() {
+  const reservation = createServer();
+  try {
+    await new Promise((resolve, reject) => {
+      reservation.once("error", reject);
+      reservation.listen(0, "127.0.0.1", resolve);
+    });
+    return reservation.address().port;
+  } finally {
+    await new Promise((resolve) => reservation.close(resolve));
+  }
+}
+
+async function waitForDebugging(port, proc, getLaunchError, getChromeLogs) {
+  const deadline = Date.now() + 20_000;
+  let lastError = "not listening yet";
+  while (Date.now() < deadline) {
+    if (getLaunchError()) throw new Error(`Could not launch Chrome: ${getLaunchError().message}`);
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      throw new Error(`Chrome exited before DevTools was ready (exit=${proc.exitCode}, signal=${proc.signalCode}).\n${getChromeLogs()}`);
+    }
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
+        signal: AbortSignal.timeout(800),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const pages = await response.json();
+      if (Array.isArray(pages) && pages.some((item) => item.type === "page" && item.webSocketDebuggerUrl)) {
+        return pages;
+      }
+      lastError = "DevTools has no page WebSocket target yet";
+    } catch (error) {
+      lastError = error.cause?.code || error.message;
+    }
+    await sleep(150);
+  }
+  throw new Error(`Chrome DevTools did not start on localhost:${port} within 20 seconds (${lastError}).\n` +
+    `Chrome exit=${proc.exitCode}, signal=${proc.signalCode}.\n${getChromeLogs()}`);
+}
+
 async function run() {
   const chrome = findChrome();
   const dir = await mkdtemp(join(tmpdir(), "f1-chrome-"));
@@ -90,21 +133,20 @@ async function run() {
   try {
     await new Promise((resolve, reject) => { server.listen(0, "127.0.0.1", resolve); server.once("error", reject); });
     const port = server.address().port;
+    const debuggingPort = await reserveDebugPort();
     let restrictedBrowser = false;
     const args = ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
-      "--lang=en-US", "--remote-debugging-port=0", `--user-data-dir=${dir}`, "about:blank"];
-    proc = spawn(chrome, args, { stdio: "ignore" });
-    let debuggingPort;
-    for (let i = 0; i < 100; i++) {
-      try {
-        const contents = await readFile(join(dir, "DevToolsActivePort"), "utf8");
-        debuggingPort = Number(contents.split("\n")[0]);
-        break;
-      } catch { if (proc.exitCode !== null) throw new Error(`Chrome exited (${proc.exitCode})`); await sleep(100); }
-    }
-    if (!debuggingPort) throw new Error("Chrome remote debugging port unavailable");
-    const pages = await (await fetch(`http://127.0.0.1:${debuggingPort}/json/list`)).json();
-    const page = pages.find((item) => item.type === "page");
+      "--lang=en-US", "--remote-debugging-address=127.0.0.1", `--remote-debugging-port=${debuggingPort}`,
+      `--user-data-dir=${dir}`, "about:blank"];
+    // Preserve stderr for meaningful GitHub Actions diagnostics if startup fails.
+    // Never suppress a failure or mark the smoke test as successful without Chrome.
+    let chromeLogs = "";
+    let launchError = null;
+    proc = spawn(chrome, args, { stdio: ["ignore", "ignore", "pipe"] });
+    proc.on("error", (error) => { launchError = error; });
+    proc.stderr.on("data", (chunk) => { chromeLogs = (chromeLogs + chunk.toString()).slice(-12_000); });
+    const pages = await waitForDebugging(debuggingPort, proc, () => launchError, () => chromeLogs);
+    const page = pages.find((item) => item.type === "page" && item.webSocketDebuggerUrl);
     assert.ok(page, "Chromium has no page target");
     cdp = new Cdp(page.webSocketDebuggerUrl);
     await cdp.send("Runtime.enable");
@@ -180,6 +222,8 @@ async function run() {
       assert.equal(await cdp.evaluate("document.getElementById('export-history')?.disabled"), true);
       assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
       assert.equal(await cdp.evaluate("document.getElementById('setting-green-lights').checked"), false);
+      assert.equal(await cdp.evaluate("document.getElementById('setting-live-timer').checked"), false);
+      assert.equal(await cdp.evaluate("document.getElementById('result').getAttribute('aria-live')"), "off");
       assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 0);
       assert.equal(await cdp.evaluate("document.getElementById('setting-language').value"), "auto");
       assert.equal(await cdp.evaluate("document.documentElement.lang"), "en");
@@ -325,18 +369,28 @@ async function run() {
       const green = document.getElementById('setting-green-lights');
       green.checked = true;
       green.dispatchEvent(new Event('change', { bubbles: true }));
+      const live = document.getElementById('setting-live-timer');
+      live.checked = true;
+      live.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
     assert.equal(await cdp.evaluate("document.getElementById('setting-green-lights').checked"), true);
+    assert.equal(await cdp.evaluate("document.getElementById('setting-live-timer').checked"), true);
     await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown', {button:0, isPrimary:true, bubbles:true}));");
     await cdp.until("document.querySelectorAll('.light.on').length === 10", 5500);
     await cdp.until("document.getElementById('game-control').getAttribute('aria-label') === 'Stop the reaction time clock'", 3500);
     assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 10, "Only upper two rows illuminate green at GO");
     assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on').length"), 0, "Red lights are off at GO");
     await sleep(120);
+    const inProgress = await cdp.evaluate("document.getElementById('result').textContent");
+    assert.match(inProgress, /^\d{2}\.\d{3}$/);
+    assert.notEqual(inProgress, "00.000", "Live timer should count up after lights-out");
     await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown', {button:0, isPrimary:true, bubbles:true}));");
     assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 0, "Green lights switch off after reaction");
     const score = await cdp.evaluate("document.getElementById('result').textContent");
     assert.match(score, /^\d{2}\.\d{3}$/);
+    await sleep(55);
+    assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), score,
+      "Live timer should freeze at the final measured result");
     assert.notEqual(await cdp.evaluate("document.getElementById('best').textContent"), "Your best: —");
     // The history panel must reflect actual completed rounds without demo data.
     assert.equal(await cdp.evaluate("document.getElementById('trials-stat').textContent"), "1");
@@ -438,7 +492,12 @@ async function run() {
       : "Browser gameplay passed: keyboard, pointer, jump start, reaction, record, reload, 320px");
   } finally {
     if (cdp) cdp.close();
-    if (proc) proc.kill("SIGTERM");
+    if (proc && proc.exitCode === null && proc.signalCode === null) {
+      const exited = new Promise((resolve) => proc.once("exit", resolve));
+      proc.kill("SIGTERM");
+      await Promise.race([exited, sleep(1500)]);
+      if (proc.exitCode === null && proc.signalCode === null) proc.kill("SIGKILL");
+    }
     await new Promise((resolve) => server.close(resolve));
     await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 150 });
   }

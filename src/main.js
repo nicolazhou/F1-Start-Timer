@@ -22,6 +22,7 @@
   const contrastControl = document.getElementById("setting-contrast");
   const motionControl = document.getElementById("setting-motion");
   const greenLightsControl = document.getElementById("setting-green-lights");
+  const liveTimerControl = document.getElementById("setting-live-timer");
   const scaleControl = document.getElementById("setting-scale");
   const languageControl = document.getElementById("setting-language");
   const copyButton = document.getElementById("copy-result");
@@ -57,6 +58,26 @@
   let previousLitCount = 0;
   let audioContext = null;
   let audioUnavailable = false;
+  let game = null;
+  let liveTimerFrame = null;
+  function stopLiveTimer() {
+    if (liveTimerFrame !== null) cancelAnimationFrame(liveTimerFrame);
+    liveTimerFrame = null;
+  }
+  function tickLiveTimer() {
+    liveTimerFrame = null;
+    if (!settings.liveTimer || currentView.phase !== PHASE.READY ||
+        document.visibilityState === "hidden" || !game) return;
+    const elapsed = game.getElapsedMs();
+    if (elapsed === null) return;
+    score.textContent = formatTime(elapsed);
+    liveTimerFrame = requestAnimationFrame(tickLiveTimer);
+  }
+  function syncLiveTimer() {
+    stopLiveTimer();
+    if (settings.liveTimer && currentView.phase === PHASE.READY &&
+        document.visibilityState !== "hidden" && game) tickLiveTimer();
+  }
   function renderLights(next = currentView) {
     strips.forEach((strip, i) => {
       const illuminated = next.phase === PHASE.LIGHTING && next.litCount > i;
@@ -84,6 +105,8 @@
     if (next.phase === PHASE.FALSE_START) score.textContent = t("jumpStart");
     else if (next.phase === PHASE.INTERRUPTED) score.textContent = t("interrupted");
     else if (next.phase === PHASE.RESULT) score.textContent = formatTime(next.resultMs);
+    else if (next.phase === PHASE.READY && settings.liveTimer && game)
+      score.textContent = formatTime(game.getElapsedMs() ?? 0);
     else score.textContent = "00.000";
     bestElement.textContent = t("best", { time: formatTime(best) });
   }
@@ -125,6 +148,7 @@
     contrastControl.checked = settings.highContrast;
     motionControl.checked = settings.reduceMotion;
     greenLightsControl.checked = settings.greenLights;
+    liveTimerControl.checked = settings.liveTimer;
     scaleControl.value = String(settings.textScale);
     languageControl.value = settings.language;
     document.documentElement.dataset.highContrast = String(settings.highContrast);
@@ -132,6 +156,7 @@
     document.documentElement.dataset.textScale = String(settings.textScale);
     renderLights();
     renderGameTexts();
+    syncLiveTimer();
   }
   function updateResultActions() {
     copyButton.disabled = latestResult === null;
@@ -194,7 +219,7 @@
 
   for (const [element, key] of [
     [soundControl, "sound"], [contrastControl, "highContrast"], [motionControl, "reduceMotion"],
-    [greenLightsControl, "greenLights"],
+    [greenLightsControl, "greenLights"], [liveTimerControl, "liveTimer"],
   ]) {
     element.addEventListener("change", () => {
       settings = { ...settings, [key]: element.checked };
@@ -218,12 +243,13 @@
     setStatus(t("languageUpdated"));
   });
 
-  const game = createReactionGame({
+  game = createReactionGame({
     onChange(next) {
       renderLights(next);
       currentView = next;
       // Redraw strings in the active language without modifying the game's timing.
       renderGameTexts(next);
+      syncLiveTimer();
       if (next.phase === PHASE.LIGHTING && next.litCount > previousLitCount) playCue("light");
       if (next.phase === PHASE.READY) playCue("go");
       if (next.phase === PHASE.FALSE_START) playCue("jump");

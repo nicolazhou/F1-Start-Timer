@@ -167,3 +167,25 @@ test("invalid timing is rejected and a duplicate start cannot create extra timer
   assert.equal(game.start(), false);
   assert.equal(scheduler.timers.size, 1);
 });
+
+test("live elapsed readout follows the exact game clock and is only exposed at GO", () => {
+  const { scheduler, game } = setup();
+  assert.equal(game.getElapsedMs(), null);
+  game.activate();
+  scheduler.advance(4200);
+  assert.equal(game.getElapsedMs(), null, "no running timer before the lights go out");
+  scheduler.paint();
+  assert.equal(game.getElapsedMs(), 0);
+  scheduler.advance(123.45);
+  assert.ok(Math.abs(game.getElapsedMs() - 123.45) < 1e-8);
+  const result = game.activate();
+  assert.equal(result.type, "result");
+  assert.ok(Math.abs(result.resultMs - 123.45) < 1e-8);
+  assert.equal(game.getElapsedMs(), null, "clock is hidden after the reaction");
+  game.activate();
+  assert.equal(game.getElapsedMs(), null);
+  assert.equal(game.interrupt(), true);
+  assert.equal(game.getElapsedMs(), null);
+  game.dispose();
+  assert.equal(game.getElapsedMs(), null);
+});
