@@ -21,6 +21,7 @@
   const soundControl = document.getElementById("setting-sound");
   const contrastControl = document.getElementById("setting-contrast");
   const motionControl = document.getElementById("setting-motion");
+  const greenLightsControl = document.getElementById("setting-green-lights");
   const scaleControl = document.getElementById("setting-scale");
   const languageControl = document.getElementById("setting-language");
   const copyButton = document.getElementById("copy-result");
@@ -56,13 +57,24 @@
   let previousLitCount = 0;
   let audioContext = null;
   let audioUnavailable = false;
+  function renderLights(next = currentView) {
+    strips.forEach((strip, i) => {
+      const illuminated = next.phase === PHASE.LIGHTING && next.litCount > i;
+      const green = settings.greenLights && next.phase === PHASE.READY;
+      const bulbs = strip.querySelectorAll(".light");
+      bulbs[0].classList.toggle("green", green);
+      bulbs[1].classList.toggle("green", green);
+      bulbs[2].classList.toggle("on", illuminated);
+      bulbs[3].classList.toggle("on", illuminated);
+    });
+  }
   function renderGameTexts(next = currentView, forceAnnouncement = false) {
     root.setAttribute("aria-label", t({
       [PHASE.IDLE]: "gameIdle", [PHASE.LIGHTING]: "gameLighting", [PHASE.READY]: "gameReady",
       [PHASE.RESULT]: "gameResult", [PHASE.FALSE_START]: "gameFalseStart", [PHASE.INTERRUPTED]: "gameInterrupted",
     }[next.phase]));
     lights.setAttribute("aria-label", next.phase === PHASE.READY
-      ? t("lightsReady") : t("lightsCount", { count: next.litCount }));
+      ? t(settings.greenLights ? "lightsReadyGreen" : "lightsReady") : t("lightsCount", { count: next.litCount }));
     if (forceAnnouncement || next.phase !== announcedPhase) announcement.textContent = t({
       [PHASE.IDLE]: "announceIdle", [PHASE.LIGHTING]: "announceLighting",
       [PHASE.READY]: "announceReady", [PHASE.RESULT]: "announceResult",
@@ -94,16 +106,32 @@
     historyUI?.render();
   }
 
-  function setStatus(message) { status.textContent = message; }
+  // Toast-like feedback: do not leave old export messages in the modal footer.
+  const STATUS_DURATION_MS = 4500;
+  let statusTimer = null;
+  function clearStatus() {
+    if (statusTimer !== null) clearTimeout(statusTimer);
+    statusTimer = null;
+    status.textContent = "";
+  }
+  function setStatus(message) {
+    clearStatus();
+    if (!message || !settingsDetails.open) return;
+    status.textContent = message;
+    statusTimer = setTimeout(clearStatus, STATUS_DURATION_MS);
+  }
   function applySettings() {
     soundControl.checked = settings.sound;
     contrastControl.checked = settings.highContrast;
     motionControl.checked = settings.reduceMotion;
+    greenLightsControl.checked = settings.greenLights;
     scaleControl.value = String(settings.textScale);
     languageControl.value = settings.language;
     document.documentElement.dataset.highContrast = String(settings.highContrast);
     document.documentElement.dataset.reduceMotion = String(settings.reduceMotion);
     document.documentElement.dataset.textScale = String(settings.textScale);
+    renderLights();
+    renderGameTexts();
   }
   function updateResultActions() {
     copyButton.disabled = latestResult === null;
@@ -166,6 +194,7 @@
 
   for (const [element, key] of [
     [soundControl, "sound"], [contrastControl, "highContrast"], [motionControl, "reduceMotion"],
+    [greenLightsControl, "greenLights"],
   ]) {
     element.addEventListener("change", () => {
       settings = { ...settings, [key]: element.checked };
@@ -191,12 +220,7 @@
 
   const game = createReactionGame({
     onChange(next) {
-      strips.forEach((strip, i) => {
-        const illuminated = next.litCount > i;
-        const bulbs = strip.querySelectorAll(".light");
-        bulbs[2].classList.toggle("on", illuminated);
-        bulbs[3].classList.toggle("on", illuminated);
-      });
+      renderLights(next);
       currentView = next;
       // Redraw strings in the active language without modifying the game's timing.
       renderGameTexts(next);
@@ -260,7 +284,7 @@
   });
   function exportCsv() {
     if (!history.length) return;
-    const csv = extras.csvForHistory(history, isValidRecord);
+    const csv = extras.csvForHistory(history);
     const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -289,6 +313,7 @@
   settingsClose.addEventListener("click", closeSettings);
   settingsBackdrop.addEventListener("click", closeSettings);
   settingsDetails.addEventListener("toggle", () => {
+    clearStatus();
     document.documentElement.classList.toggle("settings-open", settingsDetails.open);
     if (settingsDetails.open) {
       settingsClose.focus({ preventScroll: true });

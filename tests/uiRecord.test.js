@@ -10,12 +10,17 @@ const { PHASE, isValidRecord } = globalThis.F1StartTimerGame;
 function createUI() {
   const saved = [];
   let publish;
-  const makeElement = () => ({ textContent: "", checked: false, value: "100", disabled: false,
-    setAttribute() {}, addEventListener() {} });
+  const makeElement = () => {
+    const listeners = new Map();
+    return { textContent: "", checked: false, value: "100", disabled: false,
+      setAttribute() {}, addEventListener(type, callback) { listeners.set(type, callback); },
+      fire(type) { listeners.get(type)?.(); } };
+  };
   const root = makeElement();
-  const bulbs = Array.from({ length: 5 }, () => Array.from({ length: 4 }, () => ({
-    classList: { toggle() {} },
-  })));
+  const bulbs = Array.from({ length: 5 }, () => Array.from({ length: 4 }, () => {
+    const classes = new Set();
+    return { classList: { toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); }, contains: (name) => classes.has(name) } };
+  }));
   root.querySelectorAll = () => bulbs.map((lights) => ({ querySelectorAll: () => lights }));
   const elements = new Map([
     ["game-control", root],
@@ -31,6 +36,7 @@ function createUI() {
     ["setting-sound", makeElement()],
     ["setting-contrast", makeElement()],
     ["setting-motion", makeElement()],
+    ["setting-green-lights", makeElement()],
     ["setting-scale", makeElement()],
     ["setting-language", makeElement()],
     ["copy-result", makeElement()],
@@ -75,7 +81,9 @@ function createUI() {
   runInNewContext(readFileSync("src/i18n.js", "utf8"), context);
   runInNewContext(readFileSync("src/main.js", "utf8"), context);
   const result = (time) => publish({ phase: PHASE.RESULT, litCount: 0, resultMs: time });
-  return { result, elements, saved };
+  return { result, elements, saved, bulbs,
+    phase: (phase, litCount = 0) => publish({ phase, litCount, resultMs: null }),
+  };
 }
 
 test("invalid low reaction cannot poison the personal best", () => {
@@ -105,4 +113,28 @@ test("record eligibility is numeric and includes boundary values", () => {
   for (const invalid of [0, 0.4999, -1, 60000.001, NaN, Infinity, "200", null]) {
     assert.equal(isValidRecord(invalid), false, `Should reject ${invalid}`);
   }
+});
+
+
+test("optional green lights use only upper rows during the GO window", () => {
+  const ui = createUI();
+  ui.phase(PHASE.LIGHTING, 5);
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("on")).length, 10);
+  ui.phase(PHASE.READY);
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("green")).length, 0,
+    "existing users should see the classic unlit GO signal");
+  const control = ui.elements.get("setting-green-lights");
+  control.checked = true;
+  control.fire("change");
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("green")).length, 10);
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("on")).length, 0);
+  for (const column of ui.bulbs) {
+    assert.ok(column[0].classList.contains("green") && column[1].classList.contains("green"));
+    assert.ok(!column[2].classList.contains("green") && !column[3].classList.contains("green"));
+  }
+  ui.result(250);
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("green")).length, 0,
+    "green lights turn off after the player reacts");
+  ui.phase(PHASE.FALSE_START);
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("green")).length, 0);
 });

@@ -4,7 +4,7 @@
   const SETTINGS_KEY = "f1-start-timer:settings";
   const HISTORY_KEY = "f1-start-timer:history";
   const MAX_HISTORY = 50;
-  const defaults = Object.freeze({ sound: false, highContrast: false, reduceMotion: false, textScale: 100, language: "auto" });
+  const defaults = Object.freeze({ sound: false, highContrast: false, reduceMotion: false, greenLights: false, textScale: 100, language: "auto" });
 
   function getStorage(storage) {
     return storage === undefined ? root.localStorage : storage;
@@ -15,6 +15,7 @@
       sound: value.sound === true,
       highContrast: value.highContrast === true,
       reduceMotion: value.reduceMotion === true,
+      greenLights: value.greenLights === true,
       textScale: [100, 125, 150].includes(value.textScale) ? value.textScale : 100,
       language: ["auto", "en", "it", "es", "fr", "de"].includes(value.language) ? value.language : "auto",
     };
@@ -58,11 +59,11 @@
       fastestMs: entries.length ? Math.min(...entries.map((entry) => entry.ms)) : null,
     };
   }
-  function csvForHistory(history, isValidRecord) {
-    const rows = ["timestamp_utc,reaction_ms,reaction_seconds,eligible_for_best"];
+  function csvForHistory(history) {
+    const rows = ["timestamp_utc,reaction_ms,reaction_seconds"];
     for (const entry of history) {
       if (!validAttempt(entry)) continue;
-      rows.push(`${entry.at},${entry.ms},${(Math.round(entry.ms) / 1000).toFixed(3)},${isValidRecord(entry.ms)}`);
+      rows.push(`${entry.at},${entry.ms},${(Math.round(entry.ms) / 1000).toFixed(3)}`);
     }
     return rows.join("\r\n") + "\r\n";
   }

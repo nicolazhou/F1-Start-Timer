@@ -13,6 +13,11 @@ for (const url of urls) {
 for (const path of SITE_FILES.keys()) {
   assert.ok(existsSync(resolve("dist", path)), `Missing published file: ${path}`);
 }
+// CSS background icons are relative to the CSS file, not the HTML base URL.
+const css = readFileSync("dist/src/style.css", "utf8");
+for (const [, iconPath] of css.matchAll(/url\(["']?(\.\.\/public\/icons\/[\w-]+\.svg)["']?\)/g)) {
+  assert.ok(existsSync(resolve("dist/src", iconPath)), `Missing CSS background icon: ${iconPath}`);
+}
 assert.ok(existsSync("dist/.nojekyll"), "GitHub Pages .nojekyll marker missing");
 assert.doesNotMatch(html, /%BASE_URL%|startup-diagnostic|src="\/src\//);
 const published = [];

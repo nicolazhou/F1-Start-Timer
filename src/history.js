@@ -29,6 +29,7 @@
     let activeTab = "history";
 
     function selectTab(name, focus = false) {
+      if (name !== activeTab) setStatus("");
       activeTab = name;
       for (const key of Object.keys(tabs)) {
         const selected = key === name;

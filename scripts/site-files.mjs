@@ -10,6 +10,7 @@ export const SITE_FILES = new Map([
   ["src/style.css", "text/css; charset=utf-8"],
   ["public/favicon.ico", "image/x-icon"],
   ["public/icons/gear.svg", "image/svg+xml"],
+  ["public/icons/chevron-down.svg", "image/svg+xml"],
   ["public/icons/LICENSE.txt", "text/plain; charset=utf-8"],
   ["public/favicon-32x32.png", "image/png"],
   ["public/favicon-16x16.png", "image/png"],

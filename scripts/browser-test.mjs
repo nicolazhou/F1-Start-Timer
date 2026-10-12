@@ -179,6 +179,8 @@ async function run() {
       assert.equal(await cdp.evaluate("document.getElementById('trials-stat')?.textContent"), "0");
       assert.equal(await cdp.evaluate("document.getElementById('export-history')?.disabled"), true);
       assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
+      assert.equal(await cdp.evaluate("document.getElementById('setting-green-lights').checked"), false);
+      assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 0);
       assert.equal(await cdp.evaluate("document.getElementById('setting-language').value"), "auto");
       assert.equal(await cdp.evaluate("document.documentElement.lang"), "en");
       assert.equal(await cdp.evaluate("document.getElementById('copy-result').disabled"), true);
@@ -318,11 +320,21 @@ async function run() {
     await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new KeyboardEvent('keydown', {key:' ', bubbles:true}));");
     assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), "JUMP START!");
     assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), "Jump-start message overflows mobile screen");
+    // Enable the opt-in GO indicator via the same checkbox users click.
+    await cdp.evaluate(`(() => {
+      const green = document.getElementById('setting-green-lights');
+      green.checked = true;
+      green.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await cdp.evaluate("document.getElementById('setting-green-lights').checked"), true);
     await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown', {button:0, isPrimary:true, bubbles:true}));");
     await cdp.until("document.querySelectorAll('.light.on').length === 10", 5500);
     await cdp.until("document.getElementById('game-control').getAttribute('aria-label') === 'Stop the reaction time clock'", 3500);
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 10, "Only upper two rows illuminate green at GO");
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on').length"), 0, "Red lights are off at GO");
     await sleep(120);
     await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown', {button:0, isPrimary:true, bubbles:true}));");
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 0, "Green lights switch off after reaction");
     const score = await cdp.evaluate("document.getElementById('result').textContent");
     assert.match(score, /^\d{2}\.\d{3}$/);
     assert.notEqual(await cdp.evaluate("document.getElementById('best').textContent"), "Your best: —");
@@ -338,11 +350,44 @@ async function run() {
     assert.equal(await cdp.evaluate("document.getElementById('panel-history').hidden"), true);
     assert.equal(await cdp.evaluate("document.getElementById('panel-preferences').hidden"), false);
     await cdp.evaluate("document.getElementById('tab-history').click()");
+    // The select controls use a shared, locally bundled Bootstrap chevron.
+    for (const id of ["setting-scale", "setting-language", "history-filter"]) {
+      const selector = await cdp.evaluate(`(() => {
+        const styles = getComputedStyle(document.getElementById(${JSON.stringify(id)}));
+        return { appearance: styles.appearance, image: styles.backgroundImage,
+          paddingRight: parseFloat(styles.paddingRight) };
+      })()`);
+      assert.equal(selector.appearance, "none", `${id}: native arrow should be hidden`);
+      assert.match(selector.image, /chevron-down\.svg/, `${id}: Bootstrap icon must be used`);
+      assert.ok(selector.paddingRight >= 30, `${id}: arrow must have enough breathing room`);
+    }
     await cdp.evaluate("document.getElementById('clear-history').click()");
     assert.equal(await cdp.evaluate("document.getElementById('history-confirm').hidden"), false);
+    // Regression: the generic button hover must not wash out the red text/button.
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('confirm-clear')).backgroundColor"), "rgb(210, 11, 6)");
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    const dom = await cdp.send("DOM.getDocument");
+    const danger = await cdp.send("DOM.querySelector", { nodeId: dom.root.nodeId, selector: "#confirm-clear" });
+    await cdp.send("CSS.forcePseudoState", { nodeId: danger.nodeId, forcedPseudoClasses: ["hover"] });
+    await sleep(200);
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('confirm-clear')).backgroundColor"), "rgb(170, 9, 4)");
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('confirm-clear')).color"), "rgb(255, 255, 255)");
+    await cdp.send("CSS.forcePseudoState", { nodeId: danger.nodeId, forcedPseudoClasses: [] });
     await cdp.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
     assert.equal(await cdp.evaluate("document.getElementById('history-confirm').hidden"), true);
     assert.equal(await cdp.evaluate("document.getElementById('extras').open"), true);
+    // Export feedback is temporary, not a permanent label at the modal bottom.
+    await cdp.evaluate("document.getElementById('export-history').click()");
+    assert.match(await cdp.evaluate("document.getElementById('extras-status').textContent"), /Exported 1 result as CSV/);
+    await cdp.until("document.getElementById('extras-status').textContent === ''", 5500);
+    await cdp.evaluate("document.getElementById('export-history').click()");
+    assert.match(await cdp.evaluate("document.getElementById('extras-status').textContent"), /Exported 1 result as CSV/);
+    await cdp.evaluate("document.getElementById('close-settings').click()");
+    await cdp.until("!document.getElementById('extras').open");
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open");
+    assert.equal(await cdp.evaluate("document.getElementById('extras-status').textContent"), "", "Reopening must not show stale notifications");
     await cdp.evaluate("document.getElementById('close-settings').click()");
     await cdp.until("!document.getElementById('extras').open");
     assert.equal(await cdp.evaluate("document.getElementById('copy-result').disabled"), false);

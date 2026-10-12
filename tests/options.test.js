@@ -16,14 +16,14 @@ function store(seed = {}) {
 }
 
 test("settings default to silent, classic styling and normal text", () => {
-  assert.deepEqual(p.loadSettings(store()), { sound: false, highContrast: false, reduceMotion: false, textScale: 100, language: "auto" });
+  assert.deepEqual(p.loadSettings(store()), { sound: false, highContrast: false, reduceMotion: false, greenLights: false, textScale: 100, language: "auto" });
   const bad = { sound: "yes", highContrast: true, reduceMotion: 1, textScale: 999 };
-  assert.deepEqual(p.normalizeSettings(bad), { sound: false, highContrast: true, reduceMotion: false, textScale: 100, language: "auto" });
+  assert.deepEqual(p.normalizeSettings(bad), { sound: false, highContrast: true, reduceMotion: false, greenLights: false, textScale: 100, language: "auto" });
 });
 
 test("settings round-trip and tolerate corrupted / blocked localStorage", () => {
   const storage = store();
-  const settings = { sound: true, highContrast: true, reduceMotion: true, textScale: 150, language: "fr" };
+  const settings = { sound: true, highContrast: true, reduceMotion: true, greenLights: true, textScale: 150, language: "fr" };
   assert.equal(p.saveSettings(settings, storage), true);
   assert.deepEqual(p.loadSettings(storage), settings);
   storage.values.set(p.SETTINGS_KEY, "{bad json");
@@ -31,6 +31,8 @@ test("settings round-trip and tolerate corrupted / blocked localStorage", () => 
   const blocked = { getItem() { throw Error("blocked"); }, setItem() { throw Error("blocked"); } };
   assert.equal(p.saveSettings(settings, blocked), false);
   assert.equal(p.loadSettings(blocked).textScale, 100);
+  // Existing users keep the classic red-only look after upgrading.
+  assert.equal(p.normalizeSettings({ sound: true, language: "it" }).greenLights, false);
 });
 
 test("results persist newest-first and stay limited to 50 plausible entries", () => {
@@ -56,9 +58,10 @@ test("malformed history entries cannot break startup or CSV export", () => {
   ]) });
   const history = p.loadHistory(storage);
   assert.equal(history.length, 1);
-  const csv = p.csvForHistory(history, game.isValidRecord);
-  assert.match(csv, /^timestamp_utc,reaction_ms,reaction_seconds,eligible_for_best\r\n/);
-  assert.match(csv, /2026-10-11T15:00:00.000Z,250.4,0.250,true/);
+  const csv = p.csvForHistory(history);
+  assert.match(csv, /^timestamp_utc,reaction_ms,reaction_seconds\r\n/);
+  assert.match(csv, /2026-10-11T15:00:00.000Z,250.4,0.250\r\n/);
+  assert.doesNotMatch(csv, /eligible_for_best|,true|,false/);
   assert.doesNotMatch(csv, /formula|HYPERLINK/);
   assert.equal(p.loadHistory(store({ [p.HISTORY_KEY]: "not json" })).length, 0);
 });

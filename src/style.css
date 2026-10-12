@@ -41,6 +41,8 @@ html, body { height: 100%; width: 100%; margin: 0; }
 .light-container { position: relative; z-index: 1; }
 .light { padding-top: 100%; border-radius: 50%; background: #8080805c; }
 .light.on { background: #ff1801; }
+/* Optional GO indicator: the upper two lights of each column turn green. */
+.light.green { background: #19d15b; }
 .time { display: block; margin-top: 0; margin-bottom: .5rem; font-weight: 300; line-height: 1.2; }
 .help p { margin-top: 0; margin-bottom: 1rem; }
 .credits { margin: 12px 0 0; text-align: center; font-size: 12px; color: #888; }
@@ -100,6 +102,7 @@ html, body { height: 100%; width: 100%; margin: 0; }
 :root[data-high-contrast="true"] { color: #000; }
 :root[data-high-contrast="true"] .light { background: #dadada; }
 :root[data-high-contrast="true"] .light.on { background: #ff4a34; }
+:root[data-high-contrast="true"] .light.green { background: #008c37; }
 :root[data-high-contrast="true"] .extras summary,
 :root[data-high-contrast="true"] .extras-hint,
 :root[data-high-contrast="true"] .credits { color: #202020; }
@@ -258,7 +261,68 @@ html.settings-open, html.settings-open body { overflow: hidden; }
 .history-confirm-card h3 { font-size: 17px; margin: 0 0 8px; }
 .history-confirm-card p { font-size: 13px; color: #707780; line-height: 1.5; margin: 0 0 18px; }
 .history-confirm-buttons { display: flex; justify-content: flex-end; gap: 8px; }
-.history-confirm-buttons .danger { background: #d20b06; color: #fff; border-color: #d20b06; }
+/* Keep destructive actions red even when the generic button hover rule applies. */
+.history-confirm-buttons .history-action.danger {
+  background-color: #d20b06;
+  border-color: #d20b06;
+  color: #fff;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.history-confirm-buttons .history-action.danger:hover:not(:disabled) {
+  background-color: #aa0904;
+  border-color: #aa0904;
+  color: #fff;
+}
+.history-confirm-buttons .history-action.danger:active:not(:disabled) {
+  background-color: #8f0804;
+  border-color: #8f0804;
+}
+
+/* A real Bootstrap Icons chevron for all selects instead of browser-dependent
+   arrows; the local asset also works on GitHub Pages and offline. */
+#panel-preferences .setting-select select,
+.history-filter select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  min-height: 34px;
+  min-width: 0;
+  padding: 7px 35px 7px 10px;
+  border: 1px solid #cdd0d4;
+  border-radius: 7px;
+  background-color: #fff;
+  background-image: url("../public/icons/chevron-down.svg");
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: right 11px center;
+  color: #25282d;
+  font: inherit;
+  cursor: pointer;
+}
+#panel-preferences .setting-select select {
+  max-width: 70%;
+  font-size: 12px;
+}
+.history-filter select {
+  max-width: 130px;
+  font-size: 12px;
+}
+#panel-preferences .setting-select select:hover,
+.history-filter select:hover { border-color: #9098a4; }
+#panel-preferences .setting-select select:focus-visible,
+.history-filter select:focus-visible { outline: 3px solid #1457b8; outline-offset: 2px; }
+@media (forced-colors: active) {
+  /* Keep the OS arrow available when high-contrast mode hides background images. */
+  #panel-preferences .setting-select select,
+  .history-filter select {
+    -webkit-appearance: auto;
+    -moz-appearance: auto;
+    appearance: auto;
+    background-image: none;
+    padding-right: 10px;
+  }
+}
 :root[data-high-contrast="true"] .history-attempt-date, :root[data-high-contrast="true"] .history-privacy, :root[data-high-contrast="true"] .history-stat p { color: #343434; }
 @media (max-width: 600px) {
   .extras[open] .extras-content { max-height: min(90vh, 800px); max-height: min(90dvh, 800px); border-radius: 18px 18px 0 0; border-bottom: 0; }

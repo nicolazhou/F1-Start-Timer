@@ -24,9 +24,9 @@ except ImportError as error:
 DIST = Path(__file__).resolve().parent.parent / "dist"
 PATHS = {
     "index.html", "src/style.css", "src/game.js", "src/options.js",
-    "src/i18n.js", "src/main.js", "public/favicon.ico",
+    "src/i18n.js", "src/main.js", "src/history.js", "public/favicon.ico",
     "public/favicon-16x16.png", "public/favicon-32x32.png",
-    "public/icons/gear.svg",
+    "public/icons/gear.svg", "public/icons/chevron-down.svg",
     "public/apple-touch-icon.png", "README.md",
 }
 
@@ -115,18 +115,34 @@ def run_engine(browser_type, base, engine_name):
         assert page.locator(".extras-content").get_attribute("aria-modal") == "true"
         assert page.evaluate("document.documentElement.classList.contains('settings-open')")
         assert page.locator("#setting-sound").get_attribute("type") == "checkbox"
+        expect(page.locator("#setting-green-lights")).not_to_be_checked()
+        expect(page.locator(".light.green")).to_have_count(0)
         assert page.locator("#setting-sound + .switch-track").count() == 1
         assert page.locator("#setting-sound").get_attribute("aria-hidden") is None
         expect(page.locator("#tab-history")).to_have_attribute("aria-selected", "true")
         expect(page.locator("#export-history")).to_be_disabled()
         page.locator("#tab-preferences").click()
         expect(page.locator("#panel-preferences")).to_be_visible()
+        # Uniform arrows in Chromium, Firefox and WebKit, including Pages subpaths.
+        for select_id in ("setting-scale", "setting-language", "history-filter"):
+            style = page.locator(f"#{select_id}").evaluate("""node => ({
+                appearance: getComputedStyle(node).appearance,
+                image: getComputedStyle(node).backgroundImage,
+                padding: parseFloat(getComputedStyle(node).paddingRight),
+            })""")
+            assert style["appearance"] == "none", f"{engine_name}: {select_id} has native arrow"
+            assert "chevron-down.svg" in style["image"], f"{engine_name}: {select_id} missing chevron"
+            assert style["padding"] >= 30, f"{engine_name}: {select_id} arrow overlaps label"
         page.locator("#close-settings").focus()
         page.keyboard.press("Shift+Tab")
         expect(page.locator("#setting-language")).to_be_focused()
         page.keyboard.press("Tab")
         expect(page.locator("#close-settings")).to_be_focused()
 
+        green = page.locator("#setting-green-lights")
+        green.check()
+        expect(green).to_be_checked()
+        assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).greenLights") is True
         contrast = page.locator("#setting-contrast")
         contrast.check()
         expect(contrast).to_be_checked()
@@ -150,6 +166,7 @@ def run_engine(browser_type, base, engine_name):
         assert page.evaluate("document.documentElement.lang") == "it"
         assert page.evaluate("document.documentElement.dataset.highContrast") == "true"
         assert page.evaluate("document.documentElement.dataset.textScale") == "150"
+        expect(page.locator("#setting-green-lights")).to_be_checked()
         assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).language") == "it"
         page.locator("#extras summary").click()
         page.locator("#setting-language").select_option("en")
@@ -177,8 +194,12 @@ def run_engine(browser_type, base, engine_name):
         page.keyboard.press("Enter")
         expect(page.locator(".light.on")).to_have_count(10, timeout=6500)
         expect(page.locator("#game-control")).to_have_attribute("aria-label", "Stop the reaction time clock", timeout=4500)
+        expect(page.locator(".light.green")).to_have_count(10)
+        expect(page.locator(".light.on")).to_have_count(0)
+        assert "green" in page.locator("#lights-container").get_attribute("aria-label").lower()
         page.wait_for_timeout(110)
         page.keyboard.press("Space")
+        expect(page.locator(".light.green")).to_have_count(0)
         assert page.locator("#result").inner_text() not in ("00.000", "JUMP START!")
         expect(page.locator("#copy-result")).to_be_enabled()
         expect(page.locator("#export-results")).to_be_enabled()
@@ -187,8 +208,28 @@ def run_engine(browser_type, base, engine_name):
         page.locator("#extras summary").click()
         page.locator("#tab-history").click()
         expect(page.locator("#attempt-list .history-attempt")).to_have_count(1)
+        with page.expect_download() as download_wait:
+            page.locator("#export-history").click()
+        download = download_wait.value
+        assert download.suggested_filename == "f1-start-timer-results.csv"
+        csv = Path(download.path()).read_bytes().decode("utf-8-sig")
+        assert csv.startswith("timestamp_utc,reaction_ms,reaction_seconds\r\n")
+        assert "eligible_for_best" not in csv
+        assert len(csv.splitlines()) == 2
+        expect(page.locator("#extras-status")).to_have_text("Exported 1 result as CSV.")
+        expect(page.locator("#extras-status")).to_be_empty(timeout=6500)
+        page.locator("#export-history").click()
+        expect(page.locator("#extras-status")).to_have_text("Exported 1 result as CSV.")
+        page.locator("#tab-preferences").click()
+        expect(page.locator("#extras-status")).to_be_empty()
+        page.locator("#tab-history").click()
         page.locator("#clear-history").click()
         expect(page.locator("#history-confirm")).to_be_visible()
+        danger = page.locator("#confirm-clear")
+        expect(danger).to_have_css("background-color", "rgb(210, 11, 6)")
+        danger.hover()
+        expect(danger).to_have_css("background-color", "rgb(170, 9, 4)")
+        expect(danger).to_have_css("color", "rgb(255, 255, 255)")
         page.keyboard.press("Escape")
         expect(page.locator("#history-confirm")).to_be_hidden()
         expect(page.locator("#extras")).to_have_attribute("open", "")
@@ -196,6 +237,9 @@ def run_engine(browser_type, base, engine_name):
         page.locator("#confirm-clear").click()
         expect(page.locator("#trials-stat")).to_have_text("0")
         expect(page.locator("#export-history")).to_be_disabled()
+        page.locator("#close-settings").click()
+        page.locator("#extras summary").click()
+        expect(page.locator("#extras-status")).to_be_empty()
         page.locator("#close-settings").click()
         result = page.locator("#best").inner_text()
         assert result.startswith("Your best: 00.")
