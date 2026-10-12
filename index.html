@@ -15,6 +15,9 @@
     <link rel="icon" type="image/png" sizes="32x32" href="./public/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./public/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="./public/apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="stylesheet" href="./src/style.css" />
     <script defer src="./src/game.js"></script>
     <script defer src="./src/options.js"></script>
@@ -22,7 +25,9 @@
     <script defer src="./src/history.js"></script>
     <script defer src="./src/training.js"></script>
     <script defer src="./src/training-ui.js"></script>
+    <script defer src="./src/result-card.js"></script>
     <script defer src="./src/main.js"></script>
+    <script defer src="./src/pwa.js"></script>
   </head>
   <body>
     <main id="app">
@@ -77,6 +82,9 @@
                 <label class="setting setting-toggle"><span data-i18n="sound">Sound effects</span><input class="switch-control" type="checkbox" id="setting-sound" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-volume" for="setting-volume"><span data-i18n="soundVolume">Sound volume</span><span class="volume-control"><input type="range" id="setting-volume" min="0" max="100" step="5" value="75"/><output id="volume-value" for="setting-volume">75%</output></span></label>
                 <label class="setting setting-toggle"><span data-i18n="contrast">High contrast</span><input class="switch-control" type="checkbox" id="setting-contrast" /><span class="switch-track" aria-hidden="true"></span></label>
+                <label class="setting setting-select" for="setting-color-vision"><span data-i18n="colorVision">Light colors</span>
+                  <select id="setting-color-vision"><option value="standard" data-i18n="colorStandard">Standard red / green</option><option value="accessible" data-i18n="colorAccessible">Accessible amber / blue</option></select>
+                </label>
                 <label class="setting setting-toggle"><span data-i18n="motion">Reduce motion</span><input class="switch-control" type="checkbox" id="setting-motion" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-toggle"><span data-i18n="greenLights">Green lights when lights go out</span><input class="switch-control" type="checkbox" id="setting-green-lights" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-toggle"><span data-i18n="liveTimer">Show live reaction timer</span><input class="switch-control" type="checkbox" id="setting-live-timer" /><span class="switch-track" aria-hidden="true"></span></label>
@@ -102,7 +110,10 @@
                 <button type="button" id="copy-result" disabled data-i18n="copy">Copy result</button>
                 <button type="button" id="share-result" disabled data-i18n="share">Share result</button>
                 <button type="button" id="export-results" disabled data-i18n="export">Export CSV</button>
+                <button type="button" id="download-card" disabled data-i18n="downloadCard">Save result card (PNG)</button>
+                <button type="button" id="share-card" disabled data-i18n="shareCard">Share result card</button>
               </div>
+              <div class="pwa-install-row"><button type="button" id="install-app" class="history-action" data-i18n="installApp" hidden>Install app</button><span class="pwa-install-hint" data-i18n="offlineHint">Install from your browser menu when available. Offline after the first online visit.</span></div>
               <p class="extras-hint" data-i18n="hint">Up to 50 recent results are kept on this device. Audio is off by default.</p>
             </section>
             <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0">

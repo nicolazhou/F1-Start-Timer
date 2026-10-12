@@ -23,6 +23,7 @@
   const volumeValue = document.getElementById("volume-value");
   const contrastControl = document.getElementById("setting-contrast");
   const motionControl = document.getElementById("setting-motion");
+  const colorVisionControl = document.getElementById("setting-color-vision");
   const greenLightsControl = document.getElementById("setting-green-lights");
   const liveTimerControl = document.getElementById("setting-live-timer");
   const scaleControl = document.getElementById("setting-scale");
@@ -30,6 +31,8 @@
   const copyButton = document.getElementById("copy-result");
   const shareButton = document.getElementById("share-result");
   const exportButton = document.getElementById("export-results");
+  const downloadCardButton = document.getElementById("download-card");
+  const shareCardButton = document.getElementById("share-card");
   const settingsDetails = document.getElementById("extras");
   const settingsTrigger = settingsDetails.querySelector("summary");
   const settingsPanel = settingsDetails.querySelector(".extras-content");
@@ -98,7 +101,7 @@
       [PHASE.RESULT]: "gameResult", [PHASE.FALSE_START]: "gameFalseStart", [PHASE.INTERRUPTED]: "gameInterrupted",
     }[next.phase]));
     lights.setAttribute("aria-label", next.phase === PHASE.READY
-      ? t(settings.greenLights ? "lightsReadyGreen" : "lightsReady") : t("lightsCount", { count: next.litCount }));
+      ? t(settings.greenLights ? (settings.colorVision === "accessible" ? "lightsReadyAccessible" : "lightsReadyGreen") : "lightsReady") : t("lightsCount", { count: next.litCount }));
     if (forceAnnouncement || next.phase !== announcedPhase) announcement.textContent = t({
       [PHASE.IDLE]: "announceIdle", [PHASE.LIGHTING]: "announceLighting",
       [PHASE.READY]: "announceReady", [PHASE.RESULT]: "announceResult",
@@ -153,11 +156,13 @@
     volumeValue.textContent = `${settings.soundVolume}%`;
     contrastControl.checked = settings.highContrast;
     motionControl.checked = settings.reduceMotion;
+    colorVisionControl.value = settings.colorVision;
     greenLightsControl.checked = settings.greenLights;
     liveTimerControl.checked = settings.liveTimer;
     scaleControl.value = String(settings.textScale);
     languageControl.value = settings.language;
     document.documentElement.dataset.highContrast = String(settings.highContrast);
+    document.documentElement.dataset.colorVision = settings.colorVision;
     document.documentElement.dataset.reduceMotion = String(settings.reduceMotion);
     document.documentElement.dataset.textScale = String(settings.textScale);
     renderLights();
@@ -168,6 +173,8 @@
     copyButton.disabled = latestResult === null;
     shareButton.disabled = latestResult === null;
     exportButton.disabled = history.length === 0;
+    downloadCardButton.disabled = latestResult === null;
+    shareCardButton.disabled = latestResult === null;
   }
   applySettings();
   renderLanguage();
@@ -244,6 +251,12 @@
   volumeControl.addEventListener("change", () => {
     unlockAudio();
     if (settings.sound) playCue("light");
+    setStatus(t("preferenceSaved"));
+  });
+  colorVisionControl.addEventListener("change", () => {
+    settings = extras.normalizeSettings({ ...settings, colorVision: colorVisionControl.value });
+    extras.saveSettings(settings);
+    applySettings();
     setStatus(t("preferenceSaved"));
   });
   scaleControl.addEventListener("change", () => {
@@ -348,6 +361,39 @@
     setStatus(t(history.length === 1 ? "exportedOne" : "exportedMany", { count: history.length }));
   }
   exportButton.addEventListener("click", exportCsv);
+
+  function currentCard() {
+    if (latestResult === null) return null;
+    return globalThis.F1StartTimerCard.createCard({
+      ms: latestResult, bestMs: best, language: activeLanguage, formatTime,
+      label: t("reactionTime"), bestLabel: t("personalBest"), date: new Date(),
+    });
+  }
+  downloadCardButton.addEventListener("click", () => {
+    try {
+      const png = currentCard();
+      if (!png) return;
+      globalThis.F1StartTimerCard.download(png, "f1-start-timer-card.png");
+      setStatus(t("cardSaved"));
+    } catch { setStatus(t("cardUnavailable")); }
+  });
+  shareCardButton.addEventListener("click", async () => {
+    try {
+      const png = currentCard();
+      if (!png) return;
+      const file = typeof File === "function"
+        ? globalThis.F1StartTimerCard.toFile(png, "f1-start-timer-card.png") : null;
+      if (file && navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: "F1 Start Timer", text: shareMessage() });
+          setStatus(t("shared"));
+        } catch (error) { if (error?.name !== "AbortError") setStatus(t("sharingUnavailable")); }
+      } else {
+        globalThis.F1StartTimerCard.download(png, "f1-start-timer-card.png");
+        setStatus(t("cardSavedFallback"));
+      }
+    } catch { setStatus(t("cardUnavailable")); }
+  });
 
   function activate() {
     if (settingsDetails.open || trainingUI?.isOpen || document.visibilityState === "hidden") return;

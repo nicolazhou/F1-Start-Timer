@@ -18,14 +18,14 @@ function store(seed = {}) {
 }
 
 test("settings default to silent, classic styling and normal text", () => {
-  assert.deepEqual(p.loadSettings(store()), { sound: false, soundVolume: 75, highContrast: false, reduceMotion: false, greenLights: false, liveTimer: false, textScale: 100, language: "auto" });
+  assert.deepEqual(p.loadSettings(store()), { sound: false, soundVolume: 75, highContrast: false, reduceMotion: false, greenLights: false, liveTimer: false, colorVision: "standard", textScale: 100, language: "auto" });
   const bad = { sound: "yes", highContrast: true, reduceMotion: 1, textScale: 999 };
-  assert.deepEqual(p.normalizeSettings(bad), { sound: false, soundVolume: 75, highContrast: true, reduceMotion: false, greenLights: false, liveTimer: false, textScale: 100, language: "auto" });
+  assert.deepEqual(p.normalizeSettings(bad), { sound: false, soundVolume: 75, highContrast: true, reduceMotion: false, greenLights: false, liveTimer: false, colorVision: "standard", textScale: 100, language: "auto" });
 });
 
 test("settings round-trip and tolerate corrupted / blocked localStorage", () => {
   const storage = store();
-  const settings = { sound: true, soundVolume: 75, highContrast: true, reduceMotion: true, greenLights: true, liveTimer: true, textScale: 150, language: "fr" };
+  const settings = { sound: true, soundVolume: 75, highContrast: true, reduceMotion: true, greenLights: true, liveTimer: true, colorVision: "accessible", textScale: 150, language: "fr" };
   assert.equal(p.saveSettings(settings, storage), true);
   assert.deepEqual(p.loadSettings(storage), settings);
   storage.values.set(p.SETTINGS_KEY, "{bad json");
@@ -37,6 +37,8 @@ test("settings round-trip and tolerate corrupted / blocked localStorage", () => 
   assert.equal(p.normalizeSettings({ sound: true, language: "it" }).greenLights, false);
   assert.equal(p.normalizeSettings({ sound: true, language: "it" }).liveTimer, false);
   assert.equal(p.normalizeSettings({ liveTimer: "yes" }).liveTimer, false);
+  assert.equal(p.normalizeSettings({ colorVision: "<script>" }).colorVision, "standard");
+  assert.equal(p.normalizeSettings({ colorVision: "accessible" }).colorVision, "accessible");
 });
 
 test("results persist newest-first and stay limited to 50 plausible entries", () => {

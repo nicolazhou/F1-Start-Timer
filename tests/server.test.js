@@ -19,7 +19,7 @@ test("local dev server binds to loopback, serves game files and denies private f
       child.once("exit", (code) => { clearTimeout(timeout); reject(new Error(`Server exited ${code}: ${errors}`)); });
     });
     for (const [path, expected] of [["", 200], ["src/main.js", 200], ["public/favicon.ico", 200], ["public/icons/gear.svg", 200],
-      ["README.md", 200], ["THIRD_PARTY_NOTICES.md", 404], [".env", 404], ["package.json", 404],
+      ["README.md", 200], ["manifest.webmanifest", 200], ["sw.js", 200], ["src/result-card.js", 200], ["public/icon-512.png", 200], ["THIRD_PARTY_NOTICES.md", 404], [".env", 404], ["package.json", 404],
       [".git/config", 404], ["scripts/build.mjs", 404], ["tests/storage.test.js", 404],
       ["%2eenv", 404], ["src/%2e%2e/package.json", 404]]) {
       const response = await fetch(url + path);

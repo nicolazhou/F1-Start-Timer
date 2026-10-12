@@ -176,7 +176,9 @@ async function run() {
         await cdp.evaluate(await readFile("dist/src/history.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/training.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/training-ui.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/result-card.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/main.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/pwa.js", "utf8"));
       } else if (navigation.errorText) {
         throw new Error(`Navigation failed for ${path}: ${navigation.errorText}`);
       }
@@ -228,6 +230,10 @@ async function run() {
       assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
       assert.equal(await cdp.evaluate("document.getElementById('setting-green-lights').checked"), false);
       assert.equal(await cdp.evaluate("document.getElementById('setting-live-timer').checked"), false);
+      assert.equal(await cdp.evaluate("document.getElementById('setting-color-vision').value"), "standard");
+      assert.equal(await cdp.evaluate("document.getElementById('download-card').disabled"), true);
+      assert.ok(await cdp.evaluate("document.querySelector('link[rel=manifest]') !== null"));
+      assert.ok(await cdp.evaluate("typeof globalThis.F1StartTimerCard?.createCard === 'function'"));
       assert.equal(await cdp.evaluate("document.getElementById('result').getAttribute('aria-live')"), "off");
       assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 0);
       assert.equal(await cdp.evaluate("document.getElementById('setting-language').value"), "auto");

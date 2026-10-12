@@ -25,7 +25,8 @@ except ImportError as error:
 DIST = Path(__file__).resolve().parent.parent / "dist"
 PATHS = {
     "index.html", "src/style.css", "src/game.js", "src/options.js", "src/training.js", "src/training-ui.js",
-    "src/i18n.js", "src/main.js", "src/history.js", "public/favicon.ico",
+    "src/i18n.js", "src/main.js", "src/history.js", "src/result-card.js", "src/pwa.js",
+    "manifest.webmanifest", "sw.js", "public/icon-192.png", "public/icon-512.png", "public/favicon.ico",
     "public/favicon-16x16.png", "public/favicon-32x32.png",
     "public/icons/gear.svg", "public/icons/chevron-down.svg", "public/icons/stopwatch.svg",
     "public/apple-touch-icon.png", "README.md",
@@ -47,7 +48,7 @@ class StaticSite(http.server.BaseHTTPRequestHandler):
             self.send_error(404, "Run npm run build first")
             return
         self.send_response(200)
-        self.send_header("Content-Type", mimetypes.guess_type(path)[0] or "application/octet-stream")
+        self.send_header("Content-Type", "application/manifest+json" if path.endswith(".webmanifest") else mimetypes.guess_type(path)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -119,6 +120,8 @@ def run_engine(browser_type, base, engine_name):
         expect(page.locator("#setting-green-lights")).not_to_be_checked()
         expect(page.locator("#setting-live-timer")).not_to_be_checked()
         expect(page.locator("#setting-volume")).to_have_value("75")
+        expect(page.locator("#setting-color-vision")).to_have_value("standard")
+        expect(page.locator("#download-card")).to_be_disabled()
         expect(page.locator(".light.green")).to_have_count(0)
         assert page.locator("#setting-sound + .switch-track").count() == 1
         assert page.locator("#setting-sound").get_attribute("aria-hidden") is None
@@ -127,7 +130,7 @@ def run_engine(browser_type, base, engine_name):
         page.locator("#tab-preferences").click()
         expect(page.locator("#panel-preferences")).to_be_visible()
         # Uniform arrows in Chromium, Firefox and WebKit, including Pages subpaths.
-        for select_id in ("setting-scale", "setting-language", "history-filter", "history-period"):
+        for select_id in ("setting-scale", "setting-language", "setting-color-vision", "history-filter", "history-period"):
             style = page.locator(f"#{select_id}").evaluate("""node => ({
                 appearance: getComputedStyle(node).appearance,
                 image: getComputedStyle(node).backgroundImage,
@@ -142,6 +145,8 @@ def run_engine(browser_type, base, engine_name):
         page.keyboard.press("Tab")
         expect(page.locator("#close-settings")).to_be_focused()
 
+        page.locator("#setting-color-vision").select_option("accessible")
+        assert page.evaluate("document.documentElement.dataset.colorVision") == "accessible"
         green = page.locator("#setting-green-lights")
         green.check()
         expect(green).to_be_checked()
@@ -180,6 +185,7 @@ def run_engine(browser_type, base, engine_name):
         assert page.evaluate("document.documentElement.dataset.textScale") == "150"
         expect(page.locator("#setting-green-lights")).to_be_checked()
         expect(page.locator("#setting-volume")).to_have_value("90")
+        expect(page.locator("#setting-color-vision")).to_have_value("accessible")
         expect(page.locator("#setting-live-timer")).to_be_checked()
         assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).liveTimer") is True
         assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).language") == "it"
@@ -222,6 +228,15 @@ def run_engine(browser_type, base, engine_name):
         page.wait_for_timeout(70)
         assert page.locator("#result").inner_text() == final_value, "Timer must freeze at reaction"
         expect(page.locator("#copy-result")).to_be_enabled()
+        expect(page.locator("#download-card")).to_be_enabled()
+        with page.expect_download() as card_download_wait:
+            page.locator("#extras summary").click()
+            page.locator("#tab-preferences").click()
+            page.locator("#download-card").click()
+        card_download = card_download_wait.value
+        assert card_download.suggested_filename == "f1-start-timer-card.png"
+        assert Path(card_download.path()).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+        page.keyboard.press("Escape")
         expect(page.locator("#export-results")).to_be_enabled()
         expect(page.locator("#trials-stat")).to_have_text("1")
         assert page.locator("#history-chart circle").count() == 1
@@ -366,6 +381,7 @@ def run_engine(browser_type, base, engine_name):
 
         if engine_name in ("chromium", "webkit"):
             mobile_touch(browser, base, engine_name)
+        offline_pwa(browser, base, engine_name)
     finally:
         browser.close()
 
@@ -402,6 +418,38 @@ def mobile_touch(browser, base, engine_name):
     assert not errors, f"{engine_name} mobile JS errors: {errors}"
     print(f"PASS {engine_name} mobile touch: bottom sheet, switches, close, tap, false start")
     context.close()
+
+
+def offline_pwa(browser, base, engine_name):
+    """Install SW from a Pages-like subpath; reload the whole app offline."""
+    context = browser.new_context(viewport={"width": 390, "height": 844}, service_workers="allow")
+    try:
+        page = context.new_page()
+        page.goto(base + "/f1-start-timer/", wait_until="load")
+        page.wait_for_function("navigator.serviceWorker?.controller !== null", timeout=15000)
+        manifest = page.evaluate("""async () => {
+            const response = await fetch('./manifest.webmanifest');
+            return response.json();
+        }""")
+        assert manifest["start_url"] == "./" and manifest["display"] == "standalone"
+        assert page.evaluate("navigator.serviceWorker.controller.scriptURL.endsWith('/f1-start-timer/sw.js')")
+        context.set_offline(True)
+        page.reload(wait_until="load", timeout=12000)
+        expect(page.locator("#game-control")).to_be_visible()
+        expect(page.locator("#training-launch")).to_be_visible()
+        page.locator("#extras summary").click()
+        page.locator("#tab-preferences").click()
+        page.locator("#setting-color-vision").select_option("accessible")
+        assert page.evaluate("document.documentElement.dataset.colorVision") == "accessible"
+        page.keyboard.press("Escape")
+        page.locator("#game-control").press("Enter")
+        expect(page.locator(".light.on")).to_have_count(2)
+        page.locator("#game-control").press("Space")
+        expect(page.locator("#result")).to_have_text("JUMP START!")
+        print(f"PASS {engine_name} PWA: subpath scope, full offline reload, timer, color-accessible setting")
+    finally:
+        context.set_offline(False)
+        context.close()
 
 
 def main():

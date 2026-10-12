@@ -2,6 +2,8 @@
 // Every path is project-relative; private files are never published or served.
 export const SITE_FILES = new Map([
   ["index.html", "text/html; charset=utf-8"],
+  ["manifest.webmanifest", "application/manifest+json; charset=utf-8"],
+  ["sw.js", "text/javascript; charset=utf-8"],
   ["src/game.js", "text/javascript; charset=utf-8"],
   ["src/options.js", "text/javascript; charset=utf-8"],
   ["src/i18n.js", "text/javascript; charset=utf-8"],
@@ -9,8 +11,12 @@ export const SITE_FILES = new Map([
   ["src/training.js", "text/javascript; charset=utf-8"],
   ["src/training-ui.js", "text/javascript; charset=utf-8"],
   ["src/main.js", "text/javascript; charset=utf-8"],
+  ["src/result-card.js", "text/javascript; charset=utf-8"],
+  ["src/pwa.js", "text/javascript; charset=utf-8"],
   ["src/style.css", "text/css; charset=utf-8"],
   ["public/favicon.ico", "image/x-icon"],
+  ["public/icon-192.png", "image/png"],
+  ["public/icon-512.png", "image/png"],
   ["public/icons/stopwatch.svg", "image/svg+xml"],
   ["public/icons/gear.svg", "image/svg+xml"],
   ["public/icons/chevron-down.svg", "image/svg+xml"],

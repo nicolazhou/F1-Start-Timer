@@ -41,6 +41,7 @@ function createUI() {
     ["volume-value", makeElement()],
     ["setting-contrast", makeElement()],
     ["setting-motion", makeElement()],
+    ["setting-color-vision", makeElement()],
     ["setting-green-lights", makeElement()],
     ["setting-live-timer", makeElement()],
     ["setting-scale", makeElement()],
@@ -48,6 +49,8 @@ function createUI() {
     ["copy-result", makeElement()],
     ["share-result", makeElement()],
     ["export-results", makeElement()],
+    ["download-card", makeElement()],
+    ["share-card", makeElement()],
   ]);
   const details = makeElement();
   const summary = makeElement();
