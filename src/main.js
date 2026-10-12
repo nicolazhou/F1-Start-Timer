@@ -479,6 +479,8 @@
     for (const element of modalBackground) element.inert = settingsDetails.open;
     settingsTrigger.tabIndex = settingsDetails.open ? -1 : 0;
     if (settingsDetails.open) {
+      const mobileSettingsBody = document.querySelector(".settings-body");
+      if (mobileSettingsBody) mobileSettingsBody.scrollTop = 0;
       historyUI?.render();
       // Covers opening <details> programmatically as well as pointer/keyboard use.
       game.interrupt();

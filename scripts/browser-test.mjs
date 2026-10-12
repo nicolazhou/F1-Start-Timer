@@ -3,7 +3,7 @@
  */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createServer } from "node:http";
@@ -272,8 +272,69 @@ async function run() {
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 320, height: 700, deviceScaleFactor: 1, mobile: true });
     await cdp.evaluate("document.querySelector('#extras summary').click()");
     await cdp.until("document.getElementById('extras').open");
-    assert.equal(await cdp.evaluate("document.querySelector('.extras-content').getBoundingClientRect().bottom <= innerHeight + 1"), true);
-    assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), "Mobile settings panel must not overflow");
+    // Mobile bottom sheet: sticky tab header, independent scrolling, full-width
+    // selectors and unobstructed actions across narrow/tall phone viewports.
+    for (const [width, height] of [[320, 700], [390, 844], [430, 932], [568, 320]]) {
+      await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: true });
+      const geometry = await cdp.evaluate(`(() => {
+        const sheet = document.querySelector('.extras-content');
+        const head = document.querySelector('.settings-head');
+        const body = document.querySelector('.settings-body');
+        const box = sheet.getBoundingClientRect();
+        return { left: box.left, right: box.right, bottom: box.bottom,
+          width: innerWidth, height: innerHeight, bodyScroll: body.scrollHeight > body.clientHeight,
+          headBottom: head.getBoundingClientRect().bottom,
+          bodyTop: body.getBoundingClientRect().top,
+          overflow: document.documentElement.scrollWidth - innerWidth };
+      })()`);
+      assert.ok(Math.abs(geometry.left) <= 1 && Math.abs(geometry.right - geometry.width) <= 1,
+        `Settings should span the ${width}px phone width: ${JSON.stringify(geometry)}`);
+      assert.ok(geometry.bottom <= geometry.height + 1 && geometry.bottom >= geometry.height - 1,
+        `Settings should rest on the bottom edge: ${JSON.stringify(geometry)}`);
+      assert.ok(geometry.bodyScroll, `The ${width}px settings sheet must scroll independently`);
+      assert.ok(geometry.headBottom <= geometry.bodyTop + 2,
+        `Header must stay outside the scrolling area: ${JSON.stringify(geometry)}`);
+      assert.ok(geometry.overflow <= 1, `${width}px settings must not overflow horizontally`);
+    }
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await cdp.evaluate("document.getElementById('tab-preferences').click()");
+    const preferenceLayout = await cdp.evaluate(`(() => {
+      const body = document.querySelector('.settings-body');
+      const row = document.querySelector('#setting-color-vision').closest('.setting-select');
+      const select = document.getElementById('setting-color-vision');
+      const buttons = [...document.querySelectorAll('#panel-preferences .result-actions button')];
+      return { rowWidth: row.getBoundingClientRect().width,
+        selectWidth: select.getBoundingClientRect().width,
+        selectHeight: select.getBoundingClientRect().height,
+        buttonMinHeight: Math.min(...buttons.map((item) => item.getBoundingClientRect().height)),
+        bodyOverflow: body.scrollWidth - body.clientWidth };
+    })()`);
+    assert.ok(preferenceLayout.selectWidth >= preferenceLayout.rowWidth - 30,
+      `Mobile select should have its own wide row: ${JSON.stringify(preferenceLayout)}`);
+    assert.ok(preferenceLayout.selectHeight >= 44 && preferenceLayout.buttonMinHeight >= 44,
+      `Touch fields and buttons must have 44px targets: ${JSON.stringify(preferenceLayout)}`);
+    assert.ok(preferenceLayout.bodyOverflow <= 1, "Preferences must not have horizontal overflow");
+    if (process.env.F1_MOBILE_SETTINGS_SCREENSHOT) {
+      // Local preview in Italian, then restore the automatic browser language.
+      await cdp.evaluate(`(() => {
+        const language = document.getElementById('setting-language');
+        language.value = 'it';
+        language.dispatchEvent(new Event('change', { bubbles: true }));
+        document.getElementById('tab-history').click();
+        document.getElementById('tab-preferences').click();
+      })()`);
+      const shot = await cdp.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+      await writeFile(process.env.F1_MOBILE_SETTINGS_SCREENSHOT, Buffer.from(shot.data, "base64"));
+      await cdp.evaluate(`(() => {
+        const language = document.getElementById('setting-language');
+        language.value = 'auto';
+        language.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+    }
+    await cdp.evaluate(`(() => { document.querySelector('.settings-body').scrollTop = 300;
+      document.getElementById('tab-history').click(); })()`);
+    assert.equal(await cdp.evaluate("document.querySelector('.settings-body').scrollTop"), 0,
+      "Changing tabs should restore the top of the new tab");
     await cdp.evaluate("document.getElementById('settings-backdrop').click()");
     await cdp.until("!document.getElementById('extras').open");
 

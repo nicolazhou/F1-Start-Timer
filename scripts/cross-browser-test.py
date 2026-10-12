@@ -479,6 +479,31 @@ def mobile_touch(browser, base, engine_name):
     panel_box = page.locator(".extras-content").bounding_box()
     assert panel_box is not None and panel_box["y"] > 150, f"{engine_name}: expected mobile bottom sheet: {panel_box}"
     page.locator("#tab-preferences").tap()
+    # v1.7.4: the sheet scrolls independently while the title/tabs stay pinned.
+    layout = page.evaluate("""() => {
+        const sheet = document.querySelector('.extras-content');
+        const head = document.querySelector('.settings-head');
+        const body = document.querySelector('.settings-body');
+        const select = document.getElementById('setting-color-vision');
+        return { sheet: sheet.getBoundingClientRect().toJSON(),
+          headBottom: head.getBoundingClientRect().bottom,
+          bodyTop: body.getBoundingClientRect().top,
+          canScroll: body.scrollHeight > body.clientHeight,
+          selectWidth: select.getBoundingClientRect().width,
+          rowWidth: select.closest('.setting-select').getBoundingClientRect().width };
+    }""")
+    assert abs(layout['sheet']['left']) <= 1 and abs(layout['sheet']['right'] - 390) <= 1
+    assert abs(layout['sheet']['bottom'] - 844) <= 1, f"{engine_name}: sheet not bottom aligned {layout}"
+    assert layout['headBottom'] <= layout['bodyTop'] + 2 and layout['canScroll'], f"{engine_name}: sticky header or independent scroll broken {layout}"
+    assert layout['selectWidth'] >= layout['rowWidth'] - 30, f"{engine_name}: select should fill its row {layout}"
+    page.locator('.settings-body').evaluate("el => { el.scrollTop = 300; }")
+    page.locator('#tab-history').tap()
+    assert page.locator('.settings-body').evaluate('el => el.scrollTop') == 0, f"{engine_name}: tab switch did not reset scroll"
+    page.locator('#tab-preferences').tap()
+    page.set_viewport_size({'width': 320, 'height': 650})
+    no_overflow(page, f"{engine_name} 320px mobile settings")
+    assert page.locator('.settings-body').evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+    page.set_viewport_size({'width': 390, 'height': 844})
     for selector in ("#extras summary", "#training-launch", "#close-settings", "#setting-language"):
         height = page.locator(selector).evaluate("el => getComputedStyle(el).minHeight")
         assert float(height.replace("px", "")) >= 44, f"{engine_name}: {selector} has small touch target {height}"

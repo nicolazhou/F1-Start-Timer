@@ -8,7 +8,7 @@ const scripts = [
   "sw.js", "src/result-card.js", "src/pwa.js", "src/game.js", "src/options.js", "src/i18n.js", "src/history.js", "src/backup.js", "src/training.js", "src/training-ui.js", "src/main.js", "scripts/build.mjs", "scripts/site-files.mjs", "scripts/verify-build.mjs",
   "scripts/serve.mjs", "scripts/check-source.mjs", "scripts/browser-test.mjs",
   "tests/reactionGame.test.js", "tests/storage.test.js", "tests/server.test.js", "tests/accessibility.test.js",
-  "tests/uiRecord.test.js", "tests/backup.test.js", "tests/pwa.test.js", "tests/card.test.js", "tests/options.test.js", "tests/training.test.js", "tests/i18n.test.js",
+  "tests/uiRecord.test.js", "tests/mobileSettings.test.js", "tests/backup.test.js", "tests/pwa.test.js", "tests/card.test.js", "tests/options.test.js", "tests/training.test.js", "tests/i18n.test.js",
 ];
 for (const script of scripts) {
   execFileSync(process.execPath, ["--check", script], { stdio: "pipe" });

@@ -36,7 +36,12 @@
     let activeTab = "history";
 
     function selectTab(name, focus = false) {
-      if (name !== activeTab) setStatus("");
+      if (name !== activeTab) {
+        setStatus("");
+        // Each mobile tab should open at its own beginning, not midway
+        // through the scroll position left by the previous tab.
+        $("settings-panel-title").closest(".extras-content").querySelector(".settings-body").scrollTop = 0;
+      }
       activeTab = name;
       for (const key of Object.keys(tabs)) {
         const selected = key === name;
