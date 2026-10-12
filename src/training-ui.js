@@ -36,6 +36,9 @@
       $("training-banner-title").textContent = t("trainingRound", { current: Math.min(done + 1, active.target), total: active.target });
       $("training-banner-progress").textContent = t("trainingCompleted", { done, total: active.target });
       $("training-progress-fill").style.width = `${done / active.target * 100}%`;
+      const progress = $("training-progressbar");
+      progress.setAttribute("aria-valuemax", String(active.target));
+      progress.setAttribute("aria-valuenow", String(done));
       $("training-banner-hint").textContent = hint || t("trainingTapHint");
     }
     function setSelected(value) {
@@ -65,8 +68,11 @@
       const chart = $("training-chart");
       chart.replaceChildren(svg("title", {}, t("trainingChartLabel")));
       const points = sessions.slice(0, 5).reverse().map(model.statsFor).map(({ averageMs }) => averageMs);
+      $("training-chart-summary").textContent = points.some((value) => value !== null)
+        ? t("trainingChartValues", { values: points.map((ms) => ms === null ? "—" : Math.round(ms)).join(", ") })
+        : t("trainingChartEmpty");
       if (!points.some((value) => value !== null)) {
-        chart.append(svg("text", { x: 210, y: 76, "text-anchor": "middle", "font-size": 13, fill: "#858990" }, t("trainingChartEmpty")));
+        chart.append(svg("text", { x: 210, y: 76, "text-anchor": "middle", "font-size": 13, fill: "#59616b" }, t("trainingChartEmpty")));
         return;
       }
       const lows = points.filter((value) => value !== null);
@@ -119,6 +125,8 @@
       modalPreviousFocus = document.activeElement;
       overlay.hidden = false;
       modal.hidden = false;
+      // Prevent screen readers from browsing the page behind this modal.
+      $("app").inert = true;
       document.documentElement.classList.add("training-open");
       renderStats();
       closeButton.focus({ preventScroll: true });
@@ -127,6 +135,7 @@
       if (modal.hidden) return;
       overlay.hidden = true;
       modal.hidden = true;
+      $("app").inert = false;
       document.documentElement.classList.remove("training-open");
       const focusTarget = !toGame && launchKeyboardOpen ? modalPreviousFocus : null;
       modalPreviousFocus = null;

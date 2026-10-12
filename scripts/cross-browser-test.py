@@ -113,6 +113,9 @@ def run_engine(browser_type, base, engine_name):
         expect(page.locator("#extras")).to_have_attribute("open", "")
         expect(page.locator(".extras-content")).to_be_visible()
         expect(page.locator("#close-settings")).to_be_focused()
+        assert page.locator("#game-control").evaluate("el => el.inert")
+        assert page.locator("#training-launch").evaluate("el => el.inert")
+        assert page.locator("#extras summary").evaluate("el => el.tabIndex") == -1
         assert page.locator(".extras-content").get_attribute("role") == "dialog"
         assert page.locator(".extras-content").get_attribute("aria-modal") == "true"
         assert page.evaluate("document.documentElement.classList.contains('settings-open')")
@@ -170,6 +173,8 @@ def run_engine(browser_type, base, engine_name):
 
         page.keyboard.press("Escape")
         expect(page.locator("#extras")).not_to_have_attribute("open", "")
+        assert not page.locator("#game-control").evaluate("el => el.inert")
+        assert page.locator("#extras summary").evaluate("el => el.tabIndex") == 0
         expect(page.locator("#game-control")).to_be_focused()
         page.keyboard.press("Space")
         expect(page.locator("#extras")).not_to_have_attribute("open", "")
@@ -238,6 +243,7 @@ def run_engine(browser_type, base, engine_name):
         expect(page.locator(".light.green")).to_have_count(0)
         assert page.locator("#result").inner_text() not in ("00.000", "JUMP START!")
         final_value = page.locator("#result").inner_text()
+        expect(page.locator("#announcement")).to_contain_text(final_value)
         page.wait_for_timeout(70)
         assert page.locator("#result").inner_text() == final_value, "Timer must freeze at reaction"
         expect(page.locator("#copy-result")).to_be_enabled()
@@ -356,6 +362,7 @@ def run_engine(browser_type, base, engine_name):
         expect(page.locator("#trials-stat")).to_have_text("50")
         expect(page.locator("#stored-count")).to_have_text("50 of 50 saved")
         assert page.locator("#history-chart circle").count() == 10
+        assert "milliseconds" in page.locator("#history-chart-summary").inner_text()
         page.locator("#history-filter").select_option("all")
         expect(page.locator("#attempt-list .history-attempt")).to_have_count(50)
         # v1.4: old data has no session ID but remains visible and can be grouped.
@@ -412,20 +419,27 @@ def run_engine(browser_type, base, engine_name):
         page.locator("#training-launch").click()
         expect(page.locator("#training-dialog")).to_be_visible()
         expect(page.locator("#training-close")).to_be_focused()
+        assert page.locator("#app").evaluate("el => el.inert")
         assert page.locator("#tab-training").count() == 0
         page.locator('.training-mode[data-count="5"]').click()
         page.locator("#training-start").click()
         expect(page.locator("#training-dialog")).to_be_hidden()
         expect(page.locator("#training-banner")).to_be_visible()
+        assert not page.locator("#app").evaluate("el => el.inert")
+        expect(page.locator("#training-progressbar")).to_have_attribute("aria-valuemax", "5")
+        expect(page.locator("#training-progressbar")).to_have_attribute("aria-valuenow", "0")
         expect(page.locator("#game-control")).to_be_focused()
         for _ in range(5):
             page.locator("#game-control").press("Enter")
             page.locator("#game-control").press("Space")
         expect(page.locator("#training-dialog")).to_be_visible(timeout=4500)
         expect(page.locator("#training-summary")).to_be_visible()
+        expect(page.locator("#training-progressbar")).to_have_attribute("aria-valuenow", "5")
+        assert page.locator("#app").evaluate("el => el.inert")
         expect(page.locator("#training-summary-false")).to_have_text("5 (100%)")
         assert len(json.loads(page.evaluate("localStorage.getItem('f1-start-timer:training-sessions')"))) == 1
         page.locator("#training-close").click()
+        assert not page.locator("#app").evaluate("el => el.inert")
         expect(page.locator("#game-control")).to_be_focused()
         page.reload(wait_until="load")
         page.locator("#training-launch").click()
@@ -465,6 +479,10 @@ def mobile_touch(browser, base, engine_name):
     panel_box = page.locator(".extras-content").bounding_box()
     assert panel_box is not None and panel_box["y"] > 150, f"{engine_name}: expected mobile bottom sheet: {panel_box}"
     page.locator("#tab-preferences").tap()
+    for selector in ("#extras summary", "#training-launch", "#close-settings", "#setting-language"):
+        height = page.locator(selector).evaluate("el => getComputedStyle(el).minHeight")
+        assert float(height.replace("px", "")) >= 44, f"{engine_name}: {selector} has small touch target {height}"
+    assert page.locator("#setting-language").evaluate("el => parseFloat(getComputedStyle(el).fontSize)") >= 16
     page.locator("#setting-motion").tap()
     expect(page.locator("#setting-motion")).to_be_checked()
     assert page.evaluate("document.documentElement.dataset.reduceMotion") == "true"

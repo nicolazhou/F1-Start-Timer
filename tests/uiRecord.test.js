@@ -15,6 +15,8 @@ function createUI() {
   let elapsed = 0;
   let nextFrameId = 0;
   const frames = new Map();
+  const delayedPaints = new Map();
+  let nextDelayId = 0;
   const makeElement = () => {
     const listeners = new Map();
     return { textContent: "", checked: false, value: "100", disabled: false,
@@ -35,6 +37,8 @@ function createUI() {
     ["lights-container", makeElement()],
     ["announcement", makeElement()],
     ["credits", { hidden: true }],
+    ["training-banner", makeElement()],
+    ["training-launch", makeElement()],
     ["creator-link", makeElement()],
     ["extras-status", makeElement()],
     ["close-settings", makeElement()],
@@ -100,6 +104,8 @@ function createUI() {
     console,
     requestAnimationFrame: (callback) => { const id = ++nextFrameId; frames.set(id, callback); return id; },
     cancelAnimationFrame: (id) => frames.delete(id),
+    setTimeout: (callback) => { const id = ++nextDelayId; delayedPaints.set(id, callback); return id; },
+    clearTimeout: (id) => delayedPaints.delete(id),
   };
   runInNewContext(readFileSync("src/i18n.js", "utf8"), context);
   runInNewContext(readFileSync("src/main.js", "utf8"), context);
@@ -108,8 +114,11 @@ function createUI() {
     getPhase: () => currentPhase,
     getInterruptions: () => interruptions,
     setElapsed: (value) => { elapsed = value; },
-    pendingFrames: () => frames.size,
-    paint: () => { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach((cb) => cb()); },
+    pendingFrames: () => frames.size + delayedPaints.size,
+    paint: () => {
+      const delayed = [...delayedPaints.values()]; delayedPaints.clear(); delayed.forEach((cb) => cb());
+      const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach((cb) => cb());
+    },
     phase: (phase, litCount = 0) => publish({ phase, litCount, resultMs: null }),
   };
 }
@@ -253,4 +262,38 @@ test("opening settings during GO stops the live timer and optional green lights"
   ui.setElapsed(9000);
   ui.paint();
   assert.equal(ui.elements.get("result").textContent, "INTERRUPTED");
+});
+
+test("mobile live display throttles painting but never delays the final measured result", () => {
+  const ui = createUI();
+  const control = ui.elements.get("setting-live-timer");
+  control.checked = true;
+  control.fire("change");
+  ui.phase(PHASE.READY);
+  assert.equal(ui.pendingFrames(), 1);
+  ui.setElapsed(120);
+  ui.paint();
+  assert.equal(ui.elements.get("result").textContent, "00.120");
+  assert.equal(ui.pendingFrames(), 1, "the next paint is scheduled, not spinning in RAF");
+  ui.result(123.89);
+  assert.equal(ui.pendingFrames(), 0, "result cancels the pending delayed repaint");
+  assert.equal(ui.elements.get("result").textContent, "00.124", "final game timestamp is exact");
+  ui.paint();
+  assert.equal(ui.elements.get("result").textContent, "00.124");
+});
+
+test("settings hides background controls and restores them when dismissed", () => {
+  const ui = createUI();
+  ui.details.open = true;
+  ui.details.fire("toggle");
+  for (const id of ["game-control", "credits", "training-launch", "training-banner"]) {
+    assert.equal(ui.elements.get(id).inert, true);
+  }
+  assert.equal(ui.summary.tabIndex, -1);
+  ui.details.open = false;
+  ui.details.fire("toggle");
+  for (const id of ["game-control", "credits", "training-launch", "training-banner"]) {
+    assert.equal(ui.elements.get(id).inert, false);
+  }
+  assert.equal(ui.summary.tabIndex, 0);
 });

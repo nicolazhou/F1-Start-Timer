@@ -456,3 +456,36 @@ html.training-open, html.training-open body { overflow: hidden; }
 .backup-buttons .history-action:focus-visible { outline: 3px solid #1457b8; outline-offset: 2px; }
 :root[data-high-contrast="true"] .backup-description { color: #323232; }
 @media (max-width: 359px) { .backup-buttons .history-action { flex: 1 1 100%; } }
+
+/* v1.7.3 — accessibility & low-power mobile refinements.
+   These neutral text colors exceed WCAG AA 4.5:1 on white. */
+.credits, .history-pill, .history-stat p, .history-stat strong small,
+.history-chart-head span, .history-chart-foot, .history-filter,
+.history-period, .history-explainer, .history-sessions,
+.history-session-heading, .history-session-heading small,
+.history-attempt-number, .history-attempt-date, .history-privacy,
+.training-intro, .training-footnote { color: #555d66; }
+.settings-tab { color: #555d66; }
+.history-link { color: #555d66; }
+/* Tab-only focus is visible without drawing a distracting ring during play. */
+#game-control.tab-navigation .help p {
+  text-decoration-thickness: 2px;
+  border-radius: 3px;
+  outline: 2px solid #1457b8;
+  outline-offset: 5px;
+}
+/* Improve touch ergonomics and avoid Safari's auto-zoom on small select text. */
+@media (pointer: coarse) {
+  .secondary-actions .extras summary, .training-launch, .settings-close,
+  .history-action, .history-link, .settings-tab, .training-mode,
+  .training-banner-footer button { min-height: 44px; }
+  .settings-close { width: 44px; flex-basis: 44px; }
+  #panel-preferences .setting-select select, .history-period select,
+  .history-filter select { min-height: 44px; font-size: 16px; }
+  .setting-toggle { min-height: 44px; }
+}
+@media (forced-colors: active) {
+  /* Browser-selected foreground/background remain readable in HC themes. */
+  .settings-tab[aria-selected="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
+  .light.on, .light.green { forced-color-adjust: none; }
+}

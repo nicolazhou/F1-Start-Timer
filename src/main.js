@@ -14,6 +14,8 @@
 
   const { PHASE, createReactionGame, loadBest, saveBest, formatTime, isValidRecord } = core;
   const strips = [...root.querySelectorAll(".light-container")];
+  // Cache lamp references once; each round otherwise queried the same 20 nodes.
+  const lamps = strips.map((strip) => [...strip.querySelectorAll(".light")]);
   const score = document.getElementById("result");
   const bestElement = document.getElementById("best");
   const lights = document.getElementById("lights-container");
@@ -39,6 +41,8 @@
   const settingsPanel = settingsDetails.querySelector(".extras-content");
   const settingsClose = document.getElementById("close-settings");
   const settingsBackdrop = document.getElementById("settings-backdrop");
+  const modalBackground = [root, document.getElementById("credits"),
+    document.getElementById("training-banner"), document.getElementById("training-launch")];
   let historyUI = null;
   let trainingUI = null;
 
@@ -66,10 +70,16 @@
   let audioContext = null;
   let audioUnavailable = false;
   let game = null;
+  // Paint the *display* at ~20fps on mobile/low-end CPUs. The reaction
+  // measurement still uses the game engine's unthrottled performance.now().
+  const LIVE_PAINT_INTERVAL_MS = 40;
   let liveTimerFrame = null;
+  let liveTimerDelay = null;
   function stopLiveTimer() {
     if (liveTimerFrame !== null) cancelAnimationFrame(liveTimerFrame);
+    if (liveTimerDelay !== null) clearTimeout(liveTimerDelay);
     liveTimerFrame = null;
+    liveTimerDelay = null;
   }
   function tickLiveTimer() {
     liveTimerFrame = null;
@@ -77,24 +87,38 @@
         document.visibilityState === "hidden" || !game) return;
     const elapsed = game.getElapsedMs();
     if (elapsed === null) return;
-    score.textContent = formatTime(elapsed);
-    liveTimerFrame = requestAnimationFrame(tickLiveTimer);
+    const display = formatTime(elapsed);
+    if (score.textContent !== display) score.textContent = display;
+    liveTimerDelay = setTimeout(() => {
+      liveTimerDelay = null;
+      liveTimerFrame = requestAnimationFrame(tickLiveTimer);
+    }, LIVE_PAINT_INTERVAL_MS);
   }
   function syncLiveTimer() {
     stopLiveTimer();
     if (settings.liveTimer && currentView.phase === PHASE.READY &&
-        document.visibilityState !== "hidden" && game) tickLiveTimer();
+        document.visibilityState !== "hidden" && game) {
+      liveTimerFrame = requestAnimationFrame(tickLiveTimer);
+    }
   }
+  // Avoid invalidating all 20 lamps when a preference or result changes.
+  let lastRedColumns = -1;
+  let lastGreen = null;
   function renderLights(next = currentView) {
-    strips.forEach((strip, i) => {
-      const illuminated = next.phase === PHASE.LIGHTING && next.litCount > i;
-      const green = settings.greenLights && next.phase === PHASE.READY;
-      const bulbs = strip.querySelectorAll(".light");
-      bulbs[0].classList.toggle("green", green);
-      bulbs[1].classList.toggle("green", green);
-      bulbs[2].classList.toggle("on", illuminated);
-      bulbs[3].classList.toggle("on", illuminated);
+    const redColumns = next.phase === PHASE.LIGHTING ? next.litCount : 0;
+    const green = settings.greenLights && next.phase === PHASE.READY;
+    if (redColumns === lastRedColumns && green === lastGreen) return;
+    lamps.forEach((bulbs, i) => {
+      const red = i < redColumns;
+      for (const index of [0, 1]) {
+        if (bulbs[index].classList.contains("green") !== green) bulbs[index].classList.toggle("green", green);
+      }
+      for (const index of [2, 3]) {
+        if (bulbs[index].classList.contains("on") !== red) bulbs[index].classList.toggle("on", red);
+      }
     });
+    lastRedColumns = redColumns;
+    lastGreen = green;
   }
   function renderGameTexts(next = currentView, forceAnnouncement = false) {
     root.setAttribute("aria-label", t({
@@ -107,7 +131,7 @@
       [PHASE.IDLE]: "announceIdle", [PHASE.LIGHTING]: "announceLighting",
       [PHASE.READY]: "announceReady", [PHASE.RESULT]: "announceResult",
       [PHASE.FALSE_START]: "announceFalseStart", [PHASE.INTERRUPTED]: "announceInterrupted",
-    }[next.phase]);
+    }[next.phase], next.phase === PHASE.RESULT ? { time: formatTime(next.resultMs) } : {});
     announcedPhase = next.phase;
     if (next.phase === PHASE.FALSE_START) score.textContent = t("jumpStart");
     else if (next.phase === PHASE.INTERRUPTED) score.textContent = t("interrupted");
@@ -320,7 +344,8 @@
           saveBest(best);
           bestElement.textContent = t("best", { time: formatTime(best) });
         }
-        historyUI?.render();
+        // The chart and list are hidden in normal play; defer their DOM work.
+        if (settingsDetails.open) historyUI?.render();
       }
       trainingUI?.onOutcome(next);
     },
@@ -451,7 +476,10 @@
   settingsDetails.addEventListener("toggle", () => {
     clearStatus();
     document.documentElement.classList.toggle("settings-open", settingsDetails.open);
+    for (const element of modalBackground) element.inert = settingsDetails.open;
+    settingsTrigger.tabIndex = settingsDetails.open ? -1 : 0;
     if (settingsDetails.open) {
+      historyUI?.render();
       // Covers opening <details> programmatically as well as pointer/keyboard use.
       game.interrupt();
       settingsClose.focus({ preventScroll: true });
@@ -487,7 +515,8 @@
   document.addEventListener("focusin", (event) => {
     if (!settingsDetails.open) return;
     if (historyUI?.confirmationOpen) {
-      if (!historyUI.confirmationPanel.contains(event.target)) document.getElementById("cancel-clear").focus({ preventScroll: true });
+      if (!historyUI.confirmationPanel.contains(event.target))
+        historyUI.confirmationPanel.querySelector("button")?.focus({ preventScroll: true });
     } else if (!settingsPanel.contains(event.target)) settingsClose.focus({ preventScroll: true });
   });
 

@@ -412,6 +412,14 @@ async function run() {
     const inProgress = await cdp.evaluate("document.getElementById('result').textContent");
     assert.match(inProgress, /^\d{2}\.\d{3}$/);
     assert.notEqual(inProgress, "00.000", "Live timer should count up after lights-out");
+    await cdp.evaluate(`(() => {
+      globalThis.__liveDomWrites = 0;
+      globalThis.__liveObserver = new MutationObserver((mutations) => { globalThis.__liveDomWrites += mutations.length; });
+      globalThis.__liveObserver.observe(document.getElementById('result'), { childList:true, characterData:true, subtree:true });
+    })()`);
+    await sleep(430);
+    const writes = await cdp.evaluate("globalThis.__liveObserver.disconnect(); globalThis.__liveDomWrites");
+    assert.ok(writes >= 2 && writes <= 14, `Mobile-friendly live readout should paint ~20fps, got ${writes} DOM writes in 430ms`);
     await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown', {button:0, isPrimary:true, bubbles:true}));");
     assert.equal(await cdp.evaluate("document.querySelectorAll('.light.green').length"), 0, "Green lights switch off after reaction");
     const score = await cdp.evaluate("document.getElementById('result').textContent");
@@ -420,6 +428,15 @@ async function run() {
     assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), score,
       "Live timer should freeze at the final measured result");
     assert.notEqual(await cdp.evaluate("document.getElementById('best').textContent"), "Your best: —");
+    // Results are rendered lazily while the modal is closed to spare mobile CPUs.
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open && document.activeElement?.id === 'close-settings'");
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').inert"), true,
+      "An open modal must hide background gameplay from the accessibility tree");
+    assert.equal(await cdp.evaluate("document.getElementById('training-launch').inert"), true);
+    assert.equal(await cdp.evaluate("document.querySelector('#extras summary').tabIndex"), -1);
+    assert.match(await cdp.evaluate("document.getElementById('announcement').textContent"), /Reaction time \d/);
+    assert.match(await cdp.evaluate("document.getElementById('history-chart-summary').textContent"), /milliseconds/);
     // The history panel must reflect actual completed rounds without demo data.
     assert.equal(await cdp.evaluate("document.getElementById('trials-stat').textContent"), "1");
     assert.equal(await cdp.evaluate("document.querySelectorAll('#attempt-list .history-attempt').length"), 1);
@@ -440,8 +457,6 @@ async function run() {
       select.value = '7d'; select.dispatchEvent(new Event('change', {bubbles: true}));
     })()`);
     assert.equal(await cdp.evaluate("document.getElementById('trials-stat').textContent"), "1");
-    await cdp.evaluate("document.querySelector('#extras summary').click()");
-    await cdp.until("document.getElementById('extras').open");
     assert.equal(await cdp.evaluate("document.getElementById('tab-history').getAttribute('aria-selected')"), "true");
     await cdp.evaluate("document.getElementById('tab-preferences').click()");
     assert.equal(await cdp.evaluate("document.getElementById('panel-history').hidden"), true);
@@ -515,6 +530,8 @@ async function run() {
     assert.equal(await cdp.evaluate("document.getElementById('extras-status').textContent"), "", "Reopening must not show stale notifications");
     await cdp.evaluate("document.getElementById('close-settings').click()");
     await cdp.until("!document.getElementById('extras').open");
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').inert"), false);
+    assert.equal(await cdp.evaluate("document.querySelector('#extras summary').tabIndex"), 0);
     assert.equal(await cdp.evaluate("document.getElementById('copy-result').disabled"), false);
     assert.equal(await cdp.evaluate("document.getElementById('share-result').disabled"), false);
     assert.equal(await cdp.evaluate("document.getElementById('export-results').disabled"), false);
@@ -557,12 +574,17 @@ async function run() {
     await cdp.until("!document.getElementById('training-dialog').hidden");
     assert.equal(await cdp.evaluate("document.getElementById('tab-training')"), null);
     assert.equal(await cdp.evaluate("document.getElementById('training-dialog').getAttribute('aria-modal')"), "true");
+    assert.equal(await cdp.evaluate("document.getElementById('app').inert"), true,
+      "Training dialog should isolate main content from screen readers");
     assert.equal(await cdp.evaluate("document.getElementById('setting-volume').value"), "75");
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 320, height: 700, deviceScaleFactor: 1, mobile: true });
     assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"));
     await cdp.evaluate("document.querySelector('.training-mode[data-count=\"5\"]').click()");
     await cdp.evaluate("document.getElementById('training-start').click()");
     assert.equal(await cdp.evaluate("document.getElementById('training-banner').hidden"), false);
+    assert.equal(await cdp.evaluate("document.getElementById('app').inert"), false);
+    assert.equal(await cdp.evaluate("document.getElementById('training-progressbar').getAttribute('aria-valuemax')"), "5");
+    assert.equal(await cdp.evaluate("document.getElementById('training-progressbar').getAttribute('aria-valuenow')"), "0");
     assert.equal(await cdp.evaluate("document.getElementById('training-dialog').hidden"), true);
     assert.equal(await cdp.evaluate("document.activeElement?.id"), "game-control");
     // Opening settings during training cancels only the current light sequence;
@@ -581,10 +603,13 @@ async function run() {
       await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
     }
     await cdp.until("!document.getElementById('training-dialog').hidden", 4000);
+    assert.equal(await cdp.evaluate("document.getElementById('app').inert"), true);
+    assert.equal(await cdp.evaluate("document.getElementById('training-progressbar').getAttribute('aria-valuenow')"), "5");
     assert.equal(await cdp.evaluate("document.getElementById('training-summary').hidden"), false);
     assert.match(await cdp.evaluate("document.getElementById('training-summary-false').textContent"), /5 \(100%\)/);
     if (!restrictedBrowser) assert.equal(await cdp.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:training-sessions')).length"), 1);
     await cdp.evaluate("document.getElementById('training-close').click()");
+    assert.equal(await cdp.evaluate("document.getElementById('app').inert"), false);
     assert.equal(await cdp.evaluate("document.activeElement?.id"), "game-control");
     assert.equal(await cdp.evaluate("document.getElementById('extras').open"), false);
     // Regression: Space after dismissing a dialog must start the game, not reopen Settings.

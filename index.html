@@ -35,7 +35,7 @@
       <h1 class="visually-hidden">F1 Start Timer</h1>
       <section id="training-banner" class="training-banner" aria-label="Training progress" data-i18n-aria-label="trainingProgressLabel" hidden>
         <div class="training-banner-head"><strong id="training-banner-title"></strong><span id="training-banner-progress"></span></div>
-        <div class="training-progress-track"><div id="training-progress-fill" class="training-progress-fill"></div></div>
+        <div class="training-progress-track" id="training-progressbar" role="progressbar" aria-label="Training progress" data-i18n-aria-label="trainingProgressLabel" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0"><div id="training-progress-fill" class="training-progress-fill"></div></div>
         <div class="training-banner-footer"><p id="training-banner-hint"></p><button id="training-end" type="button" data-i18n="endTraining">End training</button></div>
       </section>
       <div id="game-control" role="button" tabindex="0" aria-describedby="instructions" aria-label="Start reaction time test">
@@ -52,8 +52,9 @@
         </div>
         <output class="time" id="result" aria-live="off" aria-label="Reaction time" data-i18n-aria-label="reactionTime">00.000</output>
         <div id="best">Your best: —</div>
-        <span class="visually-hidden" id="announcement" role="status" aria-live="polite" aria-atomic="true">Press Enter or Space to start.</span>
       </div>
+      <!-- Live region is outside the role=button: button descendants are presentational to AT. -->
+      <span class="visually-hidden" id="announcement" role="status" aria-live="polite" aria-atomic="true">Press Enter or Space to start.</span>
       <p class="credits" id="credits" hidden>
         <span data-i18n="createdBy">Created by</span> <a id="creator-link" target="_blank" rel="noopener noreferrer"></a>
       </p>
@@ -139,7 +140,8 @@
               <div class="history-section-head history-trend-head"><h3 class="history-section-title" data-i18n="reactionTrend">Reaction trend</h3><span class="history-pill" data-i18n="last10">Last 10 attempts</span></div>
               <div class="history-chart-wrap">
                 <div class="history-chart-head"><strong data-i18n="reactionTime">Reaction time</strong><span data-i18n="lowerBetter">Lower is better ↓</span></div>
-                <svg id="history-chart" viewBox="0 0 420 144" role="img" aria-label="Chart of the last ten reaction times in milliseconds" data-i18n-aria-label="chartLabel"></svg>
+                <svg id="history-chart" viewBox="0 0 420 144" aria-describedby="history-chart-summary" role="img" aria-label="Chart of the last ten reaction times in milliseconds" data-i18n-aria-label="chartLabel"></svg>
+                <p id="history-chart-summary" class="visually-hidden"></p>
                 <div class="history-chart-foot"><span data-i18n="older">Older</span><span data-i18n="mostRecent">Most recent</span></div>
               </div>
               <div class="history-section-head history-recent-head"><div><h3 class="history-section-title" data-i18n="recentAttempts">Recent attempts</h3><span class="history-sessions" id="session-count">0 sessions</span></div>
@@ -195,7 +197,7 @@
             <div class="training-stat"><span data-i18n="trainingFalse">False starts</span><strong id="training-summary-false">0</strong></div>
           </div>
         </div>
-        <div class="history-section-head training-title-line"><h3 class="history-section-title" data-i18n="trainingMode">Practice mode</h3><span class="history-pill" data-i18n="trainingNew">New · v1.5</span></div>
+        <div class="history-section-head training-title-line"><h3 class="history-section-title" data-i18n="trainingMode">Practice mode</h3></div>
         <p class="training-intro" data-i18n="trainingIntro">Practice multiple starts using the original F1 lights.</p>
         <p class="training-field-title" id="training-count-label" data-i18n="trainingCount">Number of starts</p>
         <div class="training-modes" role="group" aria-labelledby="training-count-label">
@@ -217,7 +219,8 @@
         </div>
         <div class="history-section-head"><h3 class="history-section-title" data-i18n="trainingProgress">Personal progress</h3><span class="history-pill" data-i18n="trainingLastFive">Last 5 sessions</span></div>
         <div class="history-chart-wrap training-chart-wrap"><div class="history-chart-head"><strong data-i18n="trainingChart">Average time by session</strong><span data-i18n="lowerBetter">Lower is better ↓</span></div>
-          <svg id="training-chart" viewBox="0 0 420 144" role="img" data-i18n-aria-label="trainingChartLabel" aria-label="Chart of average reaction times in training"></svg>
+          <svg id="training-chart" viewBox="0 0 420 144" aria-describedby="training-chart-summary" role="img" data-i18n-aria-label="trainingChartLabel" aria-label="Chart of average reaction times in training"></svg>
+          <p id="training-chart-summary" class="visually-hidden"></p>
           <div class="history-chart-foot"><span data-i18n="older">Older</span><span data-i18n="mostRecent">Most recent</span></div>
         </div>
         <p class="training-intro training-footnote" data-i18n="trainingPrivacy">Training is stored on this device (up to 30 sessions).</p>

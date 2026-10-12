@@ -95,8 +95,11 @@
       const title = svgNode("title", {}, t("chartTitle", { count: ordered.length }));
       const desc = svgNode("desc", {}, t("chartDescription"));
       chart.replaceChildren(title, desc);
+      $("history-chart-summary").textContent = ordered.length
+        ? t("chartA11yValues", { values: ordered.map((entry) => Math.round(entry.ms)).join(", ") })
+        : t("noChartData");
       if (!ordered.length) {
-        chart.append(svgNode("text", { x: 210, y: 74, "text-anchor": "middle", fill: "#92979e", "font-size": 13 }, t("noChartData")));
+        chart.append(svgNode("text", { x: 210, y: 74, "text-anchor": "middle", fill: "#59616b", "font-size": 13 }, t("noChartData")));
         return;
       }
       const values = ordered.map((item) => item.ms);
@@ -113,7 +116,7 @@
         const y = yFor(ms);
         chart.append(
           svgNode("line", { x1: plot.left, x2: plot.right, y1: y.toFixed(1), y2: y.toFixed(1), stroke: "#ebeef1", "stroke-dasharray": "3 4" }),
-          svgNode("text", { x: 31, y: (y + 3).toFixed(1), "text-anchor": "end", "font-size": 10, fill: "#979ca3" }, String(Math.round(ms)))
+          svgNode("text", { x: 31, y: (y + 3).toFixed(1), "text-anchor": "end", "font-size": 10, fill: "#59616b" }, String(Math.round(ms)))
         );
       }
       const positions = ordered.map((attempt, i) => ({
@@ -138,13 +141,21 @@
       });
     }
 
+    let dateLanguage = null;
+    let dayFormatter;
+    let clockFormatter;
     function formatAttemptDate(iso) {
       const date = new Date(iso);
       const language = getLanguage();
+      if (language !== dateLanguage) {
+        dateLanguage = language;
+        dayFormatter = new Intl.DateTimeFormat(language, { month: "short", day: "numeric" });
+        clockFormatter = new Intl.DateTimeFormat(language, { hour: "2-digit", minute: "2-digit" });
+      }
       const current = new Date();
       const isToday = date.getFullYear() === current.getFullYear() && date.getMonth() === current.getMonth() && date.getDate() === current.getDate();
-      const day = isToday ? t("today") : new Intl.DateTimeFormat(language, { month: "short", day: "numeric" }).format(date);
-      const clock = new Intl.DateTimeFormat(language, { hour: "2-digit", minute: "2-digit" }).format(date);
+      const day = isToday ? t("today") : dayFormatter.format(date);
+      const clock = clockFormatter.format(date);
       return `${day}, ${clock}`;
     }
 
