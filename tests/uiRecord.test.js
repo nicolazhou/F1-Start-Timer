@@ -37,6 +37,8 @@ function createUI() {
     ["close-settings", makeElement()],
     ["settings-backdrop", makeElement()],
     ["setting-sound", makeElement()],
+    ["setting-volume", makeElement()],
+    ["volume-value", makeElement()],
     ["setting-contrast", makeElement()],
     ["setting-motion", makeElement()],
     ["setting-green-lights", makeElement()],

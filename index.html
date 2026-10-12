@@ -20,11 +20,18 @@
     <script defer src="./src/options.js"></script>
     <script defer src="./src/i18n.js"></script>
     <script defer src="./src/history.js"></script>
+    <script defer src="./src/training.js"></script>
+    <script defer src="./src/training-ui.js"></script>
     <script defer src="./src/main.js"></script>
   </head>
   <body>
     <main id="app">
       <h1 class="visually-hidden">F1 Start Timer</h1>
+      <section id="training-banner" class="training-banner" aria-label="Training progress" data-i18n-aria-label="trainingProgressLabel" hidden>
+        <div class="training-banner-head"><strong id="training-banner-title"></strong><span id="training-banner-progress"></span></div>
+        <div class="training-progress-track"><div id="training-progress-fill" class="training-progress-fill"></div></div>
+        <div class="training-banner-footer"><p id="training-banner-hint"></p><button id="training-end" type="button" data-i18n="endTraining">End training</button></div>
+      </section>
       <div id="game-control" role="button" tabindex="0" aria-describedby="instructions" aria-label="Start reaction time test">
         <div class="help">
           <p id="instructions"><em data-i18n="instructions">Click or tap anywhere to start. React as soon as the lights go out!</em></p>
@@ -44,6 +51,7 @@
       <p class="credits" id="credits" hidden>
         <span data-i18n="createdBy">Created by</span> <a id="creator-link" target="_blank" rel="noopener noreferrer"></a>
       </p>
+      <div class="secondary-actions">
       <details class="extras" id="extras">
         <summary aria-label="Settings" data-i18n-aria-label="settingsButton">
           <img class="settings-gear" src="./public/icons/gear.svg" width="16" height="16" alt="" aria-hidden="true" />
@@ -67,6 +75,7 @@
               <fieldset>
                 <legend class="visually-hidden" data-i18n="preferences">Preferences</legend>
                 <label class="setting setting-toggle"><span data-i18n="sound">Sound effects</span><input class="switch-control" type="checkbox" id="setting-sound" /><span class="switch-track" aria-hidden="true"></span></label>
+                <label class="setting setting-volume" for="setting-volume"><span data-i18n="soundVolume">Sound volume</span><span class="volume-control"><input type="range" id="setting-volume" min="0" max="100" step="5" value="75"/><output id="volume-value" for="setting-volume">75%</output></span></label>
                 <label class="setting setting-toggle"><span data-i18n="contrast">High contrast</span><input class="switch-control" type="checkbox" id="setting-contrast" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-toggle"><span data-i18n="motion">Reduce motion</span><input class="switch-control" type="checkbox" id="setting-motion" /><span class="switch-track" aria-hidden="true"></span></label>
                 <label class="setting setting-toggle"><span data-i18n="greenLights">Green lights when lights go out</span><input class="switch-control" type="checkbox" id="setting-green-lights" /><span class="switch-track" aria-hidden="true"></span></label>
@@ -142,7 +151,50 @@
           </div>
         </div>
       </details>
+      <button id="training-launch" class="training-launch" type="button" aria-haspopup="dialog" aria-controls="training-dialog"><img src="./public/icons/stopwatch.svg" width="16" height="16" alt="" aria-hidden="true" /><span data-i18n="trainingButton">Training</span></button>
+      </div>
     </main>
+    <div id="training-overlay" class="training-overlay" hidden></div>
+    <section id="training-dialog" class="training-dialog" role="dialog" aria-modal="true" aria-labelledby="training-title" tabindex="-1" hidden>
+      <header class="training-modal-head"><div class="training-modal-top"><h2 id="training-title" data-i18n="trainingTitle">Training</h2><button id="training-close" class="settings-close" type="button" data-i18n-aria-label="closeTraining" aria-label="Close training">&times;</button></div></header>
+      <div class="training-modal-body">
+        <div id="training-summary" class="training-summary" role="status" hidden>
+          <strong id="training-summary-heading"></strong><p id="training-summary-desc"></p>
+          <div class="training-stats">
+            <div class="training-stat"><span data-i18n="trainingAverage">Average (valid)</span><strong id="training-summary-average">—</strong></div>
+            <div class="training-stat"><span data-i18n="trainingBest">Best time</span><strong id="training-summary-best">—</strong></div>
+            <div class="training-stat"><span data-i18n="trainingScore">Consistency Score</span><strong id="training-summary-score">—</strong></div>
+            <div class="training-stat"><span data-i18n="trainingFalse">False starts</span><strong id="training-summary-false">0</strong></div>
+          </div>
+        </div>
+        <div class="history-section-head training-title-line"><h3 class="history-section-title" data-i18n="trainingMode">Practice mode</h3><span class="history-pill" data-i18n="trainingNew">New · v1.5</span></div>
+        <p class="training-intro" data-i18n="trainingIntro">Practice multiple starts using the original F1 lights.</p>
+        <p class="training-field-title" id="training-count-label" data-i18n="trainingCount">Number of starts</p>
+        <div class="training-modes" role="group" aria-labelledby="training-count-label">
+          <button class="training-mode" type="button" data-count="5" aria-pressed="false"><strong>5</strong><small data-i18n="trainingQuick">Quick</small></button>
+          <button class="training-mode selected" type="button" data-count="10" aria-pressed="true"><strong>10</strong><small data-i18n="trainingStandard">Standard</small></button>
+          <button class="training-mode" type="button" data-count="20" aria-pressed="false"><strong>20</strong><small data-i18n="trainingIntense">Intensive</small></button>
+        </div>
+        <p class="training-intro training-note" data-i18n="trainingCountHint">False starts count as attempts. Start each round when you are ready.</p>
+        <button id="training-start" type="button" class="history-action primary training-start" data-i18n="trainingStart">Start training →</button>
+        <p class="training-intro training-footnote" data-i18n="trainingClassic">The classic mode remains available outside training.</p>
+        <div class="training-divider"></div>
+        <div class="history-section-head"><h3 class="history-section-title" data-i18n="trainingLast">Last session</h3><span id="training-last-date" class="history-pill"></span></div>
+        <p id="training-empty" class="training-intro" data-i18n="trainingEmpty">No training sessions yet. Start your first practice!</p>
+        <div id="training-last-stats" class="training-stats" hidden>
+          <div class="training-stat"><span data-i18n="trainingAverage">Average (valid)</span><strong id="training-last-average">—</strong></div>
+          <div class="training-stat"><span data-i18n="trainingFalse">False starts</span><strong id="training-last-false">0</strong></div>
+          <div class="training-stat"><span data-i18n="trainingScore">Consistency Score</span><strong id="training-last-score">—</strong></div>
+          <div class="training-stat"><span data-i18n="trainingValid">Valid results</span><strong id="training-last-valid">0</strong></div>
+        </div>
+        <div class="history-section-head"><h3 class="history-section-title" data-i18n="trainingProgress">Personal progress</h3><span class="history-pill" data-i18n="trainingLastFive">Last 5 sessions</span></div>
+        <div class="history-chart-wrap training-chart-wrap"><div class="history-chart-head"><strong data-i18n="trainingChart">Average time by session</strong><span data-i18n="lowerBetter">Lower is better ↓</span></div>
+          <svg id="training-chart" viewBox="0 0 420 144" role="img" data-i18n-aria-label="trainingChartLabel" aria-label="Chart of average reaction times in training"></svg>
+          <div class="history-chart-foot"><span data-i18n="older">Older</span><span data-i18n="mostRecent">Most recent</span></div>
+        </div>
+        <p class="training-intro training-footnote" data-i18n="trainingPrivacy">Training is stored on this device (up to 30 sessions).</p>
+      </div>
+    </section>
     <noscript>JavaScript is required to play F1 Start Timer.</noscript>
   </body>
 </html>

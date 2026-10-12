@@ -9,6 +9,7 @@ This does NOT replace on-device iOS Safari / Android browser checks.
 """
 
 import argparse
+import json
 import contextlib
 import http.server
 import mimetypes
@@ -23,10 +24,10 @@ except ImportError as error:
 
 DIST = Path(__file__).resolve().parent.parent / "dist"
 PATHS = {
-    "index.html", "src/style.css", "src/game.js", "src/options.js",
+    "index.html", "src/style.css", "src/game.js", "src/options.js", "src/training.js", "src/training-ui.js",
     "src/i18n.js", "src/main.js", "src/history.js", "public/favicon.ico",
     "public/favicon-16x16.png", "public/favicon-32x32.png",
-    "public/icons/gear.svg", "public/icons/chevron-down.svg",
+    "public/icons/gear.svg", "public/icons/chevron-down.svg", "public/icons/stopwatch.svg",
     "public/apple-touch-icon.png", "README.md",
 }
 
@@ -117,6 +118,7 @@ def run_engine(browser_type, base, engine_name):
         assert page.locator("#setting-sound").get_attribute("type") == "checkbox"
         expect(page.locator("#setting-green-lights")).not_to_be_checked()
         expect(page.locator("#setting-live-timer")).not_to_be_checked()
+        expect(page.locator("#setting-volume")).to_have_value("75")
         expect(page.locator(".light.green")).to_have_count(0)
         assert page.locator("#setting-sound + .switch-track").count() == 1
         assert page.locator("#setting-sound").get_attribute("aria-hidden") is None
@@ -150,6 +152,8 @@ def run_engine(browser_type, base, engine_name):
         contrast.check()
         expect(contrast).to_be_checked()
         assert page.evaluate("document.documentElement.dataset.highContrast") == "true"
+        page.locator("#setting-volume").evaluate("el => { el.value = '90'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }")
+        assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).soundVolume") == 90
         page.locator("#setting-scale").select_option("150")
         assert page.evaluate("document.documentElement.dataset.textScale") == "150"
         page.locator("#setting-language").select_option("it")
@@ -161,15 +165,21 @@ def run_engine(browser_type, base, engine_name):
 
         page.keyboard.press("Escape")
         expect(page.locator("#extras")).not_to_have_attribute("open", "")
-        expect(trigger).to_be_focused()
+        expect(page.locator("#game-control")).to_be_focused()
+        page.keyboard.press("Space")
+        expect(page.locator("#extras")).not_to_have_attribute("open", "")
+        expect(page.locator(".light.on")).to_have_count(2)
+        page.keyboard.press("Space")
+        expect(page.locator("#result")).to_have_text("FALSA PARTENZA!")
         assert not page.evaluate("document.documentElement.classList.contains('settings-open')")
-        expect(page.locator("#game-control")).to_have_attribute("aria-label", "Inizia il test dei riflessi")
+        expect(page.locator("#game-control")).to_have_attribute("aria-label", "Riprova dopo la falsa partenza")
         # Persistence across a reload, including language and contrast.
         page.reload(wait_until="load")
         assert page.evaluate("document.documentElement.lang") == "it"
         assert page.evaluate("document.documentElement.dataset.highContrast") == "true"
         assert page.evaluate("document.documentElement.dataset.textScale") == "150"
         expect(page.locator("#setting-green-lights")).to_be_checked()
+        expect(page.locator("#setting-volume")).to_have_value("90")
         expect(page.locator("#setting-live-timer")).to_be_checked()
         assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).liveTimer") is True
         assert page.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:settings')).language") == "it"
@@ -319,9 +329,37 @@ def run_engine(browser_type, base, engine_name):
         page.locator("#history-filter").select_option("all")
         expect(page.locator("#attempt-list .history-attempt")).to_have_count(5)
         no_overflow(page, f"{engine_name} v1.4 history")
+        # v1.5 Training is separate from Settings and uses the original game clock.
+        page.locator("#close-settings").click()
+        expect(page.locator("#extras")).not_to_have_attribute("open", "")
+        page.locator("#training-launch").click()
+        expect(page.locator("#training-dialog")).to_be_visible()
+        expect(page.locator("#training-close")).to_be_focused()
+        assert page.locator("#tab-training").count() == 0
+        page.locator('.training-mode[data-count="5"]').click()
+        page.locator("#training-start").click()
+        expect(page.locator("#training-dialog")).to_be_hidden()
+        expect(page.locator("#training-banner")).to_be_visible()
+        expect(page.locator("#game-control")).to_be_focused()
+        for _ in range(5):
+            page.locator("#game-control").press("Enter")
+            page.locator("#game-control").press("Space")
+        expect(page.locator("#training-dialog")).to_be_visible(timeout=4500)
+        expect(page.locator("#training-summary")).to_be_visible()
+        expect(page.locator("#training-summary-false")).to_have_text("5 (100%)")
+        assert len(json.loads(page.evaluate("localStorage.getItem('f1-start-timer:training-sessions')"))) == 1
+        page.locator("#training-close").click()
+        expect(page.locator("#game-control")).to_be_focused()
+        page.reload(wait_until="load")
+        page.locator("#training-launch").click()
+        expect(page.locator("#training-last-false")).to_have_text("5/5 (100%)")
+        page.keyboard.press("Escape")
+        no_overflow(page, f"{engine_name} v1.5 training")
         page.set_viewport_size({"width": 320, "height": 650})
         no_overflow(page, f"{engine_name} v1.4 small viewport")
-        page.locator("#close-settings").click()
+        page.locator("#training-launch").click()
+        no_overflow(page, f"{engine_name} v1.5 small viewport")
+        page.keyboard.press("Escape")
         assert not errors, f"{engine_name} JS/HTTP errors: {errors}"
         print(f"PASS {engine_name}: HTTP root/subpath, modal/gear, switches, Escape/Tab, localization, persistence, responsive, game")
         context.close()

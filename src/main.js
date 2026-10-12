@@ -19,6 +19,8 @@
   const announcement = document.getElementById("announcement");
   const status = document.getElementById("extras-status");
   const soundControl = document.getElementById("setting-sound");
+  const volumeControl = document.getElementById("setting-volume");
+  const volumeValue = document.getElementById("volume-value");
   const contrastControl = document.getElementById("setting-contrast");
   const motionControl = document.getElementById("setting-motion");
   const greenLightsControl = document.getElementById("setting-green-lights");
@@ -34,6 +36,7 @@
   const settingsClose = document.getElementById("close-settings");
   const settingsBackdrop = document.getElementById("settings-backdrop");
   let historyUI = null;
+  let trainingUI = null;
 
   // Optional override for non-GitHub Pages domains.
   const GITHUB_USERNAME = "nicolazhou";
@@ -127,6 +130,7 @@
     if (ogDescription) ogDescription.content = t("ogDescription");
     renderGameTexts(currentView, true);
     historyUI?.render();
+    trainingUI?.renderLanguage();
   }
 
   // Toast-like feedback: do not leave old export messages in the modal footer.
@@ -145,6 +149,8 @@
   }
   function applySettings() {
     soundControl.checked = settings.sound;
+    volumeControl.value = String(settings.soundVolume);
+    volumeValue.textContent = `${settings.soundVolume}%`;
     contrastControl.checked = settings.highContrast;
     motionControl.checked = settings.reduceMotion;
     greenLightsControl.checked = settings.greenLights;
@@ -196,7 +202,7 @@
     } catch { audioUnavailable = true; setStatus(t("audioUnavailable")); }
   }
   function beep(frequency, duration, offset = 0) {
-    if (!settings.sound || !audioContext || audioContext.state !== "running") return;
+    if (!settings.sound || settings.soundVolume === 0 || !audioContext || audioContext.state !== "running") return;
     try {
       const start = audioContext.currentTime + offset;
       const oscillator = audioContext.createOscillator();
@@ -204,7 +210,7 @@
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(frequency, start);
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.045, start + 0.008);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.00011, 0.16 * settings.soundVolume / 100), start + 0.008);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
       oscillator.connect(gain);
       gain.connect(audioContext.destination);
@@ -230,6 +236,16 @@
       setStatus(key === "sound" ? t(element.checked ? "soundOn" : "soundOff") : t("preferenceSaved"));
     });
   }
+  volumeControl.addEventListener("input", () => {
+    settings = extras.normalizeSettings({ ...settings, soundVolume: Number(volumeControl.value) });
+    applySettings();
+    extras.saveSettings(settings);
+  });
+  volumeControl.addEventListener("change", () => {
+    unlockAudio();
+    if (settings.sound) playCue("light");
+    setStatus(t("preferenceSaved"));
+  });
   scaleControl.addEventListener("change", () => {
     settings = extras.normalizeSettings({ ...settings, textScale: Number(scaleControl.value) });
     extras.saveSettings(settings);
@@ -267,8 +283,17 @@
         }
         historyUI?.render();
       }
+      trainingUI?.onOutcome(next);
     },
   });
+
+  if (globalThis.F1StartTimerTrainingUI) {
+    trainingUI = globalThis.F1StartTimerTrainingUI.init({
+      t, getLanguage: () => activeLanguage, formatTime,
+      interruptGame: () => game.interrupt(),
+      focusGame: () => { clearTabFocus(); root.focus({ preventScroll: true }); },
+    });
+  }
 
   function shareMessage() {
     const bestText = best === null ? t("noBestYet") : `${formatTime(best)} s`;
@@ -325,10 +350,17 @@
   exportButton.addEventListener("click", exportCsv);
 
   function activate() {
-    if (settingsDetails.open || document.visibilityState === "hidden") return;
+    if (settingsDetails.open || trainingUI?.isOpen || document.visibilityState === "hidden") return;
+    if (trainingUI?.beforeActivate()) return;
     unlockAudio();
     game.activate();
   }
+
+  let settingsKeyboardOpen = false;
+  settingsTrigger.addEventListener("pointerdown", () => { settingsKeyboardOpen = false; });
+  settingsTrigger.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") settingsKeyboardOpen = true;
+  });
 
   // The native details/summary trigger keeps the panel available without JS.
   // With JS, opening it behaves as a modal: scroll locking, keyboard trapping,
@@ -345,7 +377,8 @@
     if (settingsDetails.open) {
       settingsClose.focus({ preventScroll: true });
     } else {
-      settingsTrigger.focus({ preventScroll: true });
+      if (settingsKeyboardOpen) settingsTrigger.focus({ preventScroll: true });
+      else { clearTabFocus(); root.focus({ preventScroll: true }); }
     }
   });
   function modalFocusables() {
@@ -403,8 +436,22 @@
   document.addEventListener("pointerdown", clearTabFocus, true);
   document.addEventListener("pointerdown", (event) => {
     // Settings, export controls and the author credit must never start the game.
-    if (event.target.closest("#extras, #credits")) return;
-    if (event.isPrimary && event.button === 0) activate();
+    if (event.target.closest("#extras, #credits, #training-launch, #training-dialog, #training-overlay, #training-end")) return;
+    if (event.isPrimary && event.button === 0) {
+      clearTabFocus();
+      root.focus({ preventScroll: true });
+      activate();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if ((event.key === " " || event.code === "Space") && !event.repeat &&
+        !event.altKey && !event.ctrlKey && !event.metaKey &&
+        (event.target === document.body || event.target === document.documentElement)) {
+      event.preventDefault();
+      clearTabFocus();
+      root.focus({ preventScroll: true });
+      activate();
+    }
   });
   root.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;

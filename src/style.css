@@ -360,3 +360,66 @@ html.settings-open, html.settings-open body { overflow: hidden; }
   .history-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .history-section-head.history-recent-head { align-items: flex-start; }
 }
+
+/* v1.5: Training lives beside Settings, never as another settings tab. */
+.secondary-actions { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 10px auto 0; flex-wrap: wrap; }
+.secondary-actions .extras { width: auto; margin: 0; }
+.training-launch { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 3px 10px; color: #63676c; background: none; border: 0; border-radius: 7px; font-size: .82rem; font-weight: 500; line-height: 1.2; font-family: inherit; cursor: pointer; }
+.training-launch img { opacity: .65; width: 16px; height: 16px; }
+.training-launch:hover, .training-launch:focus-visible { color: #222; background: #f1f2f4; }
+.training-launch:focus-visible { outline: 2px solid #1457b8; outline-offset: 2px; }
+.training-banner { width: min(510px, calc(100% - 24px)); border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 15px; margin-bottom: 20px; background: #fff; box-shadow: 0 4px 16px #00000008; }
+.training-banner[hidden], .training-overlay[hidden], .training-dialog[hidden], .training-summary[hidden], #training-last-stats[hidden], #training-empty[hidden] { display: none; }
+.training-banner-head, .training-banner-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.training-banner-head strong { font-size: 13px; }
+.training-banner-head span, .training-banner-footer p { color: #737a82; font-size: 11px; }
+.training-banner-footer p { margin: 0; }
+.training-banner-footer button { flex: none; background: transparent; border: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; color: #5e6269; font-weight: 500; font-size: 12px; font-family: inherit; }
+.training-banner-footer button:focus-visible { outline: 2px solid #1457b8; outline-offset: 3px; }
+.training-progress-track { height: 6px; border-radius: 8px; background: #ebedf0; overflow: hidden; margin: 10px 0; }
+.training-progress-fill { height: 100%; width: 0; background: #e10600; border-radius: 8px; transition: width .2s ease; }
+.training-overlay { position: fixed; inset: 0; background: #14171c66; z-index: 40; }
+.training-dialog { position: fixed; z-index: 41; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; width: min(460px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); background: white; border-radius: 15px; border: 1px solid #e5e7eb; box-shadow: 0 18px 60px #0003; overflow: hidden; }
+html.training-open, html.training-open body { overflow: hidden; }
+.training-modal-head { padding: 20px 19px 12px; border-bottom: 1px solid #eceef0; }
+.training-modal-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.training-modal-top h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.training-modal-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 0 19px 20px; }
+.training-title-line { margin-bottom: 6px; }
+.training-intro { font-size: 12px; color: #777d84; margin: 6px 0 15px; line-height: 1.5; }
+.training-field-title { font-size: 12px; font-weight: 650; margin: 17px 0 8px; }
+.training-modes { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 9px; }
+.training-mode { min-width: 0; border: 1px solid #e1e3e6; border-radius: 10px; background: #fff; cursor: pointer; min-height: 70px; padding: 10px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-family: inherit; }
+.training-mode strong { font-size: 23px; line-height: 1.2; }
+.training-mode small { font-size: 11px; color: #797f86; }
+.training-mode.selected { background: #fff5f4; border-color: #e10600; color: #d10a04; box-shadow: inset 0 0 0 1px #e10600; }
+.training-mode:focus-visible, .training-start:focus-visible, .training-dialog button:focus-visible { outline: 3px solid #1457b8; outline-offset: 2px; }
+.training-note { margin: 12px 0; }
+.training-start { display: flex; width: 100%; justify-content: center; background: #e10600; color: white; border-color: #e10600; font-size: 13px; padding: 13px; }
+.training-start:hover:not(:disabled) { background: #ba0702; border-color: #ba0702; color: white; }
+.training-footnote { text-align: center; font-size: 11px; margin-top: 10px; }
+.training-divider { border-top: 1px solid #e9ebed; margin: 18px 0 5px; }
+.training-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
+.training-stat { padding: 13px 11px; min-width: 0; border: 1px solid #e8eaed; border-radius: 10px; }
+.training-stat span { display: block; color: #737983; font-size: 11px; }
+.training-stat strong { display: block; margin-top: 6px; font-weight: 700; font-size: clamp(16px,4.5vw,20px); font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
+.training-stat:first-child strong { color: #d60903; }
+.training-chart-wrap { padding-bottom: 7px; }
+#training-chart { display: block; width: 100%; height: auto; }
+.training-summary { padding: 14px; margin-top: 16px; border: 1px solid #f2cdc9; border-radius: 11px; background: #fff9f8; }
+.training-summary > strong { font-size: 15px; }
+.training-summary > p { font-size: 12px; color: #737983; margin: 6px 0 12px; }
+.training-summary .training-stat { background: white; }
+:root[data-high-contrast="true"] .training-mode.selected { background: white; border-width: 2px; }
+@media (max-width: 600px) {
+  .training-dialog { left: 0; bottom: 0; top: auto; transform: none; width: 100%; max-height: min(91dvh, 800px); border-radius: 18px 18px 0 0; }
+  .training-modal-body { padding-bottom: max(20px,env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) { .training-progress-fill { transition: none; } }
+
+/* Accessible sound-volume slider; sound still starts disabled. */
+#panel-preferences .setting-volume { justify-content: space-between; gap: 10px; min-height: 47px; }
+.volume-control { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+#setting-volume { accent-color: #e10600; width: clamp(80px, 25vw, 124px); max-width: 100%; margin: 0; cursor: pointer; }
+#setting-volume:focus-visible { outline: 3px solid #1457b8; outline-offset: 3px; }
+#volume-value { min-width: 38px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; color: #5d636c; }

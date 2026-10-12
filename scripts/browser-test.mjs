@@ -174,6 +174,8 @@ async function run() {
         await cdp.evaluate(await readFile("dist/src/options.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/i18n.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/history.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/training.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/training-ui.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/main.js", "utf8"));
       } else if (navigation.errorText) {
         throw new Error(`Navigation failed for ${path}: ${navigation.errorText}`);
@@ -254,7 +256,7 @@ async function run() {
     assert.equal(await cdp.evaluate("document.documentElement.classList.contains('settings-open')"), true);
     assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('settings-backdrop')).display"), "block");
     await cdp.evaluate("document.getElementById('close-settings').click()");
-    await cdp.until("!document.getElementById('extras').open && document.activeElement?.tagName === 'SUMMARY'");
+    await cdp.until("!document.getElementById('extras').open && document.activeElement?.id === 'game-control'");
     await cdp.evaluate("document.querySelector('#extras summary').click()");
     await cdp.until("document.getElementById('extras').open");
     await cdp.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
@@ -498,6 +500,37 @@ async function run() {
     })()`);
     await cdp.evaluate("document.getElementById('export-results').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
     assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), "Start another test", "Export control must not start another round");
+
+    // v1.5: Training is a distinct dialog, never another Settings tab.
+    await cdp.evaluate("document.getElementById('training-launch').click()");
+    await cdp.until("!document.getElementById('training-dialog').hidden");
+    assert.equal(await cdp.evaluate("document.getElementById('tab-training')"), null);
+    assert.equal(await cdp.evaluate("document.getElementById('training-dialog').getAttribute('aria-modal')"), "true");
+    assert.equal(await cdp.evaluate("document.getElementById('setting-volume').value"), "75");
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 320, height: 700, deviceScaleFactor: 1, mobile: true });
+    assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"));
+    await cdp.evaluate("document.querySelector('.training-mode[data-count=\"5\"]').click()");
+    await cdp.evaluate("document.getElementById('training-start').click()");
+    assert.equal(await cdp.evaluate("document.getElementById('training-banner').hidden"), false);
+    assert.equal(await cdp.evaluate("document.getElementById('training-dialog').hidden"), true);
+    assert.equal(await cdp.evaluate("document.activeElement?.id"), "game-control");
+    // Five immediate false starts are counted, even though they are not in reaction history.
+    for (let i = 0; i < 5; i++) {
+      await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
+      await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
+    }
+    await cdp.until("!document.getElementById('training-dialog').hidden", 4000);
+    assert.equal(await cdp.evaluate("document.getElementById('training-summary').hidden"), false);
+    assert.match(await cdp.evaluate("document.getElementById('training-summary-false').textContent"), /5 \(100%\)/);
+    if (!restrictedBrowser) assert.equal(await cdp.evaluate("JSON.parse(localStorage.getItem('f1-start-timer:training-sessions')).length"), 1);
+    await cdp.evaluate("document.getElementById('training-close').click()");
+    assert.equal(await cdp.evaluate("document.activeElement?.id"), "game-control");
+    assert.equal(await cdp.evaluate("document.getElementById('extras').open"), false);
+    // Regression: Space after dismissing a dialog must start the game, not reopen Settings.
+    await cdp.evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:' ',code:'Space',bubbles:true,cancelable:true}))");
+    assert.equal(await cdp.evaluate("document.getElementById('extras').open"), false);
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on').length"), 2);
+    await cdp.evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:' ',code:'Space',bubbles:true,cancelable:true}))");
     if (!restrictedBrowser) {
       await cdp.send("Page.reload", { ignoreCache: true });
       await cdp.until("document.readyState === 'complete' && document.getElementById('best')?.textContent !== 'Your best: —'");

@@ -7,7 +7,7 @@
   const SESSION_KEY = "f1-start-timer:session";
   const VALID_SESSION = /^[a-zA-Z0-9_-]{1,80}$/;
   let fallbackSession = null;
-  const defaults = Object.freeze({ sound: false, highContrast: false, reduceMotion: false, greenLights: false, liveTimer: false, textScale: 100, language: "auto" });
+  const defaults = Object.freeze({ sound: false, soundVolume: 75, highContrast: false, reduceMotion: false, greenLights: false, liveTimer: false, textScale: 100, language: "auto" });
 
   function getStorage(storage) {
     return storage === undefined ? root.localStorage : storage;
@@ -16,6 +16,7 @@
     if (!value || typeof value !== "object" || Array.isArray(value)) return { ...defaults };
     return {
       sound: value.sound === true,
+      soundVolume: typeof value.soundVolume === "number" && Number.isFinite(value.soundVolume) ? Math.min(100, Math.max(0, Math.round(value.soundVolume))) : 75,
       highContrast: value.highContrast === true,
       reduceMotion: value.reduceMotion === true,
       greenLights: value.greenLights === true,
