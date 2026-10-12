@@ -339,3 +339,24 @@ html.settings-open, html.settings-open body { overflow: hidden; }
   .settings-head { padding-left: 14px; padding-right: 14px; }
   .settings-body { padding-left: 14px; padding-right: 14px; }
 }
+
+/* v1.4: period filters, advanced statistics and session headings. */
+.history-period { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -2px 0 13px; font-size: 12px; color: #737983; }
+.history-period select { max-width: 68%; font-size: 12px; }
+.history-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.history-stat strong { font-size: clamp(15px, 4.7vw, 21px); }
+.history-explainer { margin: 9px 1px 0; color: #83878f; font-size: 10.5px; line-height: 1.5; }
+.history-sessions { display: block; margin-top: 2px; color: #858a91; font-size: 11px; }
+.history-session-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 2px 6px; color: #767c83; font-size: 11px; font-weight: 650; }
+.history-session-heading:first-child { padding-top: 5px; }
+.history-session-heading small { color: #9a9fa5; font-size: 10px; font-weight: 500; white-space: nowrap; }
+/* Apply the existing Bootstrap chevron to the new period selector too. */
+.history-period select { -webkit-appearance: none; -moz-appearance: none; appearance: none; box-sizing: border-box;
+  min-width: 0; min-height: 34px; padding: 7px 35px 7px 10px; border: 1px solid #cdd0d4;
+  border-radius: 7px; background: #fff url("../public/icons/chevron-down.svg") no-repeat right 11px center / 14px 14px;
+  color: #25282d; font: inherit; cursor: pointer; }
+.history-period select:focus-visible { outline: 3px solid #1457b8; outline-offset: 2px; }
+@media (max-width: 400px) {
+  .history-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .history-section-head.history-recent-head { align-items: flex-start; }
+}

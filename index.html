@@ -98,18 +98,30 @@
             </section>
             <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0">
               <div class="history-section-head"><h3 class="history-section-title" data-i18n="yourPerformance">Your performance</h3><span class="history-pill" id="stored-count">0 of 50 saved</span></div>
+              <label class="history-period"><span data-i18n="historyPeriod">Period</span>
+                <select id="history-period" data-i18n-aria-label="historyPeriod" aria-label="History period">
+                  <option value="all" data-i18n="periodAll">All time</option>
+                  <option value="session" data-i18n="periodSession">This session</option>
+                  <option value="7d" data-i18n="period7d">Last 7 days</option>
+                  <option value="30d" data-i18n="period30d">Last 30 days</option>
+                </select>
+              </label>
               <div class="history-stats">
                 <div class="history-stat"><p data-i18n="personalBest">Personal best</p><strong id="best-stat">—</strong></div>
                 <div class="history-stat"><p data-i18n="average">Average</p><strong id="avg-stat">—</strong></div>
                 <div class="history-stat"><p data-i18n="attempts">Attempts</p><strong id="trials-stat">0</strong></div>
+                <div class="history-stat"><p data-i18n="median">Median</p><strong id="median-stat">—</strong></div>
+                <div class="history-stat"><p data-i18n="slowest">Slowest</p><strong id="slowest-stat">—</strong></div>
+                <div class="history-stat"><p data-i18n="consistency">Consistency</p><strong id="consistency-stat">—</strong></div>
               </div>
+              <p class="history-explainer" data-i18n="consistencyHint">Consistency = standard deviation in ms; lower is more consistent. Statistics reflect the selected period (personal best is all-time).</p>
               <div class="history-section-head history-trend-head"><h3 class="history-section-title" data-i18n="reactionTrend">Reaction trend</h3><span class="history-pill" data-i18n="last10">Last 10 attempts</span></div>
               <div class="history-chart-wrap">
                 <div class="history-chart-head"><strong data-i18n="reactionTime">Reaction time</strong><span data-i18n="lowerBetter">Lower is better ↓</span></div>
                 <svg id="history-chart" viewBox="0 0 420 144" role="img" aria-label="Chart of the last ten reaction times in milliseconds" data-i18n-aria-label="chartLabel"></svg>
                 <div class="history-chart-foot"><span data-i18n="older">Older</span><span data-i18n="mostRecent">Most recent</span></div>
               </div>
-              <div class="history-section-head history-recent-head"><h3 class="history-section-title" data-i18n="recentAttempts">Recent attempts</h3>
+              <div class="history-section-head history-recent-head"><div><h3 class="history-section-title" data-i18n="recentAttempts">Recent attempts</h3><span class="history-sessions" id="session-count">0 sessions</span></div>
                 <label class="history-filter"><span data-i18n="show">Show</span><select id="history-filter" aria-label="Show recent results" data-i18n-aria-label="showRecent"><option value="3" data-i18n="last3">Last 3</option><option value="all" id="all-attempts-option">All 0</option></select></label>
               </div>
               <ol id="attempt-list" class="history-attempts"></ol>

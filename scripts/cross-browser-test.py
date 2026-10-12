@@ -125,7 +125,7 @@ def run_engine(browser_type, base, engine_name):
         page.locator("#tab-preferences").click()
         expect(page.locator("#panel-preferences")).to_be_visible()
         # Uniform arrows in Chromium, Firefox and WebKit, including Pages subpaths.
-        for select_id in ("setting-scale", "setting-language", "history-filter"):
+        for select_id in ("setting-scale", "setting-language", "history-filter", "history-period"):
             style = page.locator(f"#{select_id}").evaluate("""node => ({
                 appearance: getComputedStyle(node).appearance,
                 image: getComputedStyle(node).backgroundImage,
@@ -215,6 +215,7 @@ def run_engine(browser_type, base, engine_name):
         expect(page.locator("#export-results")).to_be_enabled()
         expect(page.locator("#trials-stat")).to_have_text("1")
         assert page.locator("#history-chart circle").count() == 1
+        expect(page.locator("#session-count")).to_have_text("1 session")
         page.locator("#extras summary").click()
         page.locator("#tab-history").click()
         expect(page.locator("#attempt-list .history-attempt")).to_have_count(1)
@@ -270,6 +271,56 @@ def run_engine(browser_type, base, engine_name):
         assert page.locator("#history-chart circle").count() == 10
         page.locator("#history-filter").select_option("all")
         expect(page.locator("#attempt-list .history-attempt")).to_have_count(50)
+        # v1.4: old data has no session ID but remains visible and can be grouped.
+        expect(page.locator("#session-count")).to_have_text("0 sessions")
+        expect(page.locator(".history-session-heading")).to_have_count(1)
+        assert page.locator("#median-stat").inner_text() != "—"
+        assert page.locator("#slowest-stat").inner_text() != "—"
+        assert "ms" in page.locator("#consistency-stat").inner_text()
+        page.locator("#history-period").select_option("session")
+        expect(page.locator("#trials-stat")).to_have_text("0")
+        expect(page.locator("#export-history")).to_be_enabled()  # period does not limit export
+        expect(page.locator(".history-empty")).to_contain_text("No matching attempts")
+        page.locator("#history-period").select_option("all")
+        expect(page.locator("#trials-stat")).to_have_text("50")
+        # Seeding multiple new/old sessions tests date filters and persisted tab ID.
+        page.evaluate("""() => {
+            const id = sessionStorage.getItem('f1-start-timer:session');
+            const now = Date.now();
+            const attempt = (days, ms, sessionId) => ({
+                at: new Date(now - days * 86400000).toISOString(), ms,
+                ...(sessionId ? { sessionId } : {})
+            });
+            localStorage.setItem('f1-start-timer:history', JSON.stringify([
+                attempt(0, 155, id), attempt(0, 175, id),
+                attempt(6, 205, 'previous_session'), attempt(20, 225, 'previous_session'),
+                attempt(40, 295),
+            ]));
+        }""")
+        old_session = page.evaluate("sessionStorage.getItem('f1-start-timer:session')")
+        page.reload(wait_until="load")
+        assert page.evaluate("sessionStorage.getItem('f1-start-timer:session')") == old_session
+        page.locator("#extras summary").click()
+        page.locator("#history-filter").select_option("all")
+        expect(page.locator("#trials-stat")).to_have_text("5")
+        expect(page.locator("#session-count")).to_have_text("2 sessions")
+        expect(page.locator(".history-session-heading")).to_have_count(3)
+        assert "00.205" in page.locator("#median-stat").inner_text()
+        assert "00.295" in page.locator("#slowest-stat").inner_text()
+        page.locator("#history-period").select_option("session")
+        expect(page.locator("#trials-stat")).to_have_text("2")
+        expect(page.locator(".history-session-heading")).to_have_count(1)
+        expect(page.locator("#session-count")).to_have_text("1 session")
+        page.locator("#history-period").select_option("7d")
+        expect(page.locator("#trials-stat")).to_have_text("3")
+        page.locator("#history-period").select_option("30d")
+        expect(page.locator("#trials-stat")).to_have_text("4")
+        page.locator("#history-period").select_option("all")
+        page.locator("#history-filter").select_option("all")
+        expect(page.locator("#attempt-list .history-attempt")).to_have_count(5)
+        no_overflow(page, f"{engine_name} v1.4 history")
+        page.set_viewport_size({"width": 320, "height": 650})
+        no_overflow(page, f"{engine_name} v1.4 small viewport")
         page.locator("#close-settings").click()
         assert not errors, f"{engine_name} JS/HTTP errors: {errors}"
         print(f"PASS {engine_name}: HTTP root/subpath, modal/gear, switches, Escape/Tab, localization, persistence, responsive, game")

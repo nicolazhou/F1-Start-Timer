@@ -219,6 +219,9 @@ async function run() {
       assert.ok(await cdp.evaluate("document.getElementById('extras') !== null"));
       assert.equal(await cdp.evaluate("document.getElementById('tab-history')?.getAttribute('aria-selected')"), "true");
       assert.equal(await cdp.evaluate("document.getElementById('trials-stat')?.textContent"), "0");
+      assert.equal(await cdp.evaluate("document.getElementById('history-period')?.value"), "all");
+      assert.equal(await cdp.evaluate("document.getElementById('median-stat')?.textContent"), "—");
+      assert.equal(await cdp.evaluate("document.getElementById('consistency-stat')?.textContent"), "—");
       assert.equal(await cdp.evaluate("document.getElementById('export-history')?.disabled"), true);
       assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
       assert.equal(await cdp.evaluate("document.getElementById('setting-green-lights').checked"), false);
@@ -397,6 +400,21 @@ async function run() {
     assert.equal(await cdp.evaluate("document.querySelectorAll('#attempt-list .history-attempt').length"), 1);
     assert.equal(await cdp.evaluate("document.getElementById('export-history').disabled"), false);
     assert.equal(await cdp.evaluate("document.querySelectorAll('#history-chart circle').length"), 1);
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.history-session-heading').length"), 1);
+    assert.equal(await cdp.evaluate("document.getElementById('session-count').textContent"), "1 session");
+    assert.equal(await cdp.evaluate("document.getElementById('consistency-stat').textContent.trim()"), "0 ms");
+    assert.equal(await cdp.evaluate("document.getElementById('median-stat').textContent"),
+      await cdp.evaluate("document.getElementById('avg-stat').textContent"));
+    await cdp.evaluate(`(() => {
+      const select = document.getElementById('history-period');
+      select.value = 'session'; select.dispatchEvent(new Event('change', {bubbles: true}));
+    })()`);
+    assert.equal(await cdp.evaluate("document.getElementById('trials-stat').textContent"), "1");
+    await cdp.evaluate(`(() => {
+      const select = document.getElementById('history-period');
+      select.value = '7d'; select.dispatchEvent(new Event('change', {bubbles: true}));
+    })()`);
+    assert.equal(await cdp.evaluate("document.getElementById('trials-stat').textContent"), "1");
     await cdp.evaluate("document.querySelector('#extras summary').click()");
     await cdp.until("document.getElementById('extras').open");
     assert.equal(await cdp.evaluate("document.getElementById('tab-history').getAttribute('aria-selected')"), "true");
@@ -405,7 +423,7 @@ async function run() {
     assert.equal(await cdp.evaluate("document.getElementById('panel-preferences').hidden"), false);
     await cdp.evaluate("document.getElementById('tab-history').click()");
     // The select controls use a shared, locally bundled Bootstrap chevron.
-    for (const id of ["setting-scale", "setting-language", "history-filter"]) {
+    for (const id of ["setting-scale", "setting-language", "history-filter", "history-period"]) {
       const selector = await cdp.evaluate(`(() => {
         const styles = getComputedStyle(document.getElementById(${JSON.stringify(id)}));
         return { appearance: styles.appearance, image: styles.backgroundImage,

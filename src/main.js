@@ -171,6 +171,7 @@
       t, getLanguage: () => activeLanguage,
       getHistory: () => history, getBest: () => best,
       formatTime, isValidRecord, historyStats: extras.historyStats,
+      filterHistory: extras.filterHistory, sessionFor: extras.sessionFor, getSessionId: extras.currentSessionId,
       setStatus,
       onExport: () => exportCsv(),
       onClear: () => {

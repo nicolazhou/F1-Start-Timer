@@ -16,7 +16,7 @@
     return item;
   };
 
-  function initReactionHistory({ t, getLanguage, getHistory, getBest, formatTime, historyStats, isValidRecord, onClear, onExport, setStatus }) {
+  function initReactionHistory({ t, getLanguage, getHistory, getBest, getSessionId, formatTime, historyStats, filterHistory, sessionFor, isValidRecord, onClear, onExport, setStatus }) {
     const tabs = { preferences: $("tab-preferences"), history: $("tab-history") };
     const panels = { preferences: $("panel-preferences"), history: $("panel-history") };
     const confirmOverlay = $("history-confirm");
@@ -25,6 +25,7 @@
     const clearButton = $("clear-history");
     const exportButton = $("export-history");
     const filter = $("history-filter");
+    const period = $("history-period");
     const chart = $("history-chart");
     let activeTab = "history";
 
@@ -48,12 +49,19 @@
       else selectTab(activeTab === "history" ? "preferences" : "history", true);
     });
     filter.addEventListener("change", render);
+    period.addEventListener("change", () => { filter.value = "3"; render(); });
     exportButton.addEventListener("click", onExport);
 
     function setTextWithUnit(target, value) {
       target.replaceChildren();
       if (value === null) { target.textContent = "—"; return; }
       target.append(document.createTextNode(`${formatTime(value)} `), element("small", "", "s"));
+    }
+
+    function setConsistency(target, value) {
+      target.replaceChildren();
+      if (value === null) { target.textContent = "—"; return; }
+      target.append(document.createTextNode(`${Math.round(value)} `), element("small", "", "ms"));
     }
 
     function renderChart(entries) {
@@ -114,17 +122,29 @@
       return `${day}, ${clock}`;
     }
 
-    function renderAttempts(history, bestMs) {
+    function renderAttempts(history, bestMs, hasSavedAttempts) {
       const list = $("attempt-list");
       if (!history.length) {
         const empty = element("li", "history-empty");
-        empty.append(element("strong", "", t("noAttempts")), document.createTextNode(t("noAttemptsHint")));
+        empty.append(element("strong", "", t(hasSavedAttempts ? "noMatchingAttempts" : "noAttempts")),
+          document.createTextNode(t(hasSavedAttempts ? "changeHistoryPeriod" : "noAttemptsHint")));
         list.replaceChildren(empty);
         return;
       }
       const visible = filter.value === "all" ? history : history.slice(0, 3);
       const fragment = document.createDocumentFragment();
+      let previousSession = null;
       visible.forEach((attempt, i) => {
+        const session = sessionFor(attempt);
+        if (previousSession !== session) {
+          const heading = element("li", "history-session-heading");
+          const name = session === "legacy" ? t("earlierAttempts") :
+            session === getSessionId() ? t("currentSession") : t("previousSession");
+          heading.append(element("span", "", name),
+            element("small", "", session === "legacy" ? t("beforeSessions") : formatAttemptDate(attempt.at)));
+          fragment.append(heading);
+          previousSession = session;
+        }
         const li = element("li", "history-attempt");
         const number = element("span", "history-attempt-number", String(history.length - i).padStart(2, "0"));
         const detail = element("div", "history-attempt-info");
@@ -141,18 +161,24 @@
     }
 
     function render() {
-      const history = getHistory();
+      const allHistory = getHistory();
+      const history = filterHistory(allHistory, period.value, getSessionId());
       const stats = historyStats(history);
-      $("stored-count").textContent = t("storedCount", { count: stats.count, max: 50 });
+      $("stored-count").textContent = t("storedCount", { count: allHistory.length, max: 50 });
       setTextWithUnit($("best-stat"), getBest());
       setTextWithUnit($("avg-stat"), stats.averageMs);
+      setTextWithUnit($("median-stat"), stats.medianMs);
+      setTextWithUnit($("slowest-stat"), stats.slowestMs);
+      setConsistency($("consistency-stat"), stats.consistencyMs);
       $("trials-stat").textContent = String(stats.count);
+      $("session-count").textContent = t(stats.sessions === 1 ? "sessionsOne" : "sessionsMany", { count: stats.sessions });
       $("all-attempts-option").textContent = t("allAttempts", { count: stats.count });
       filter.disabled = !stats.count;
-      exportButton.disabled = !stats.count;
-      clearButton.disabled = !stats.count;
+      // Export and clearing always operate on the *entire* saved history.
+      exportButton.disabled = !allHistory.length;
+      clearButton.disabled = !allHistory.length;
       renderChart(history);
-      renderAttempts(history, getBest());
+      renderAttempts(history, getBest(), allHistory.length > 0);
     }
 
     function showConfirmation() {
