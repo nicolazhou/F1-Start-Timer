@@ -16,10 +16,16 @@
     return item;
   };
 
-  function initReactionHistory({ t, getLanguage, getHistory, getBest, getSessionId, formatTime, historyStats, filterHistory, sessionFor, isValidRecord, onClear, onExport, setStatus }) {
+  function initReactionHistory({ t, getLanguage, getHistory, getBest, getSessionId, formatTime, historyStats, filterHistory, sessionFor, isValidRecord, onClear, onExport, onBackup, onPrepareImport, onRestore, canRestore, setStatus }) {
     const tabs = { preferences: $("tab-preferences"), history: $("tab-history") };
     const panels = { preferences: $("panel-preferences"), history: $("panel-history") };
     const confirmOverlay = $("history-confirm");
+    const importOverlay = $("backup-confirm");
+    const importButton = $("import-backup");
+    const fileInput = $("backup-file");
+    const importCancel = $("cancel-backup");
+    const importConfirm = $("confirm-backup");
+    let pendingImport = null;
     const cancelButton = $("cancel-clear");
     const confirmButton = $("confirm-clear");
     const clearButton = $("clear-history");
@@ -51,6 +57,26 @@
     filter.addEventListener("change", render);
     period.addEventListener("change", () => { filter.value = "3"; render(); });
     exportButton.addEventListener("click", onExport);
+    $("export-backup").addEventListener("click", onBackup);
+    importButton.addEventListener("click", () => {
+      if (!canRestore()) { setStatus(t("backupTrainingActive")); return; }
+      fileInput.click();
+    });
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+      fileInput.value = "";
+      if (!file) return;
+      if (!canRestore()) { setStatus(t("backupTrainingActive")); return; }
+      if (file.size > root.F1StartTimerBackup.MAX_BYTES) { setStatus(t("backupTooLarge")); return; }
+      try {
+        const text = await file.text();
+        const imported = onPrepareImport(text);
+        if (!$('extras').open) return;
+        showImportConfirmation(imported);
+      } catch (error) {
+        setStatus(t(error?.message === "backup-too-large" ? "backupTooLarge" : "backupInvalid"));
+      }
+    });
 
     function setTextWithUnit(target, value) {
       target.replaceChildren();
@@ -188,14 +214,42 @@
       $("settings-panel-title").closest(".extras-content").querySelector(".settings-body").inert = true;
       cancelButton.focus();
     }
+    function showImportConfirmation(imported) {
+      pendingImport = imported;
+      $("backup-confirm-description").textContent = t("backupConfirmDescription", {
+        attempts: imported.history.length, sessions: imported.trainingSessions.length,
+      });
+      importOverlay.hidden = false;
+      $("settings-panel-title").closest(".settings-head").inert = true;
+      $("settings-panel-title").closest(".extras-content").querySelector(".settings-body").inert = true;
+      importCancel.focus();
+    }
     function dismissConfirmation() {
-      if (confirmOverlay.hidden) return false;
+      if (confirmOverlay.hidden && importOverlay.hidden) return false;
+      const wasImport = !importOverlay.hidden;
       confirmOverlay.hidden = true;
+      importOverlay.hidden = true;
+      pendingImport = null;
       $("settings-panel-title").closest(".settings-head").inert = false;
       $("settings-panel-title").closest(".extras-content").querySelector(".settings-body").inert = false;
-      clearButton.focus();
+      (wasImport ? importButton : clearButton).focus();
       return true;
     }
+    importCancel.addEventListener("click", dismissConfirmation);
+    importConfirm.addEventListener("click", () => {
+      if (!pendingImport) return;
+      if (!canRestore()) { dismissConfirmation(); setStatus(t("backupTrainingActive")); return; }
+      const attempts = pendingImport.history.length;
+      const sessions = pendingImport.trainingSessions.length;
+      const ok = onRestore(pendingImport);
+      dismissConfirmation();
+      if (!ok) { setStatus(t("backupRestoreFailed")); return; }
+      filter.value = "3";
+      period.value = "all";
+      render();
+      tabs.history.focus();
+      setStatus(t("backupRestored", { attempts, sessions }));
+    });
     clearButton.addEventListener("click", showConfirmation);
     cancelButton.addEventListener("click", dismissConfirmation);
     confirmButton.addEventListener("click", () => {
@@ -210,8 +264,8 @@
     render();
     return {
       render, selectTab, dismissConfirmation,
-      get confirmationOpen() { return !confirmOverlay.hidden; },
-      get confirmationPanel() { return confirmOverlay; },
+      get confirmationOpen() { return !confirmOverlay.hidden || !importOverlay.hidden; },
+      get confirmationPanel() { return importOverlay.hidden ? confirmOverlay : importOverlay; },
     };
   }
   root.F1StartTimerHistory = Object.freeze({ initReactionHistory });

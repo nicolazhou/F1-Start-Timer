@@ -117,6 +117,6 @@
   }
   root.F1StartTimerOptions = Object.freeze({
     SETTINGS_KEY, HISTORY_KEY, SESSION_KEY, MAX_HISTORY, normalizeSettings, loadSettings, saveSettings,
-    loadHistory, recordAttempt, clearHistory, historyStats, filterHistory, currentSessionId, sessionFor, csvForHistory, shareText,
+    loadHistory, recordAttempt, clearHistory, validAttempt, historyStats, filterHistory, currentSessionId, sessionFor, csvForHistory, shareText,
   });
 })(globalThis);

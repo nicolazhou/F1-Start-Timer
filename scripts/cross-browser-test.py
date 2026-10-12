@@ -25,7 +25,7 @@ except ImportError as error:
 DIST = Path(__file__).resolve().parent.parent / "dist"
 PATHS = {
     "index.html", "src/style.css", "src/game.js", "src/options.js", "src/training.js", "src/training-ui.js",
-    "src/i18n.js", "src/main.js", "src/history.js", "src/result-card.js", "src/pwa.js",
+    "src/i18n.js", "src/main.js", "src/history.js", "src/backup.js", "src/result-card.js", "src/pwa.js",
     "manifest.webmanifest", "sw.js", "public/icon-192.png", "public/icon-512.png", "public/favicon.ico",
     "public/favicon-16x16.png", "public/favicon-32x32.png",
     "public/icons/gear.svg", "public/icons/chevron-down.svg", "public/icons/stopwatch.svg",
@@ -196,6 +196,19 @@ def run_engine(browser_type, base, engine_name):
         expect(page.locator("#extras")).not_to_have_attribute("open", "")
         expect(page.locator("#game-control")).to_have_attribute("aria-label", "Start reaction time test")
 
+        # Opening Settings during the lighting sequence must cancel the round.
+        page.locator("#game-control").press("Enter")
+        expect(page.locator(".light.on")).to_have_count(2)
+        page.locator("#extras summary").click()
+        expect(page.locator("#result")).to_have_text("INTERRUPTED")
+        expect(page.locator(".light.on")).to_have_count(0)
+        page.wait_for_timeout(1250)
+        expect(page.locator(".light.on")).to_have_count(0)
+        expect(page.locator("#result")).to_have_text("INTERRUPTED")
+        expect(page.locator("#export-results")).to_be_disabled()
+        page.locator("#close-settings").click()
+        expect(page.locator("#result")).to_have_text("INTERRUPTED")
+
         for width, height in [(320, 700), (360, 780), (375, 667), (568, 320), (600, 350), (768, 1024), (1280, 720)]:
             page.set_viewport_size({"width": width, "height": height})
             no_overflow(page, f"{engine_name}: {width}x{height}")
@@ -229,6 +242,18 @@ def run_engine(browser_type, base, engine_name):
         assert page.locator("#result").inner_text() == final_value, "Timer must freeze at reaction"
         expect(page.locator("#copy-result")).to_be_enabled()
         expect(page.locator("#download-card")).to_be_enabled()
+        # Opening Settings after lights-out must also stop green lights/live timer.
+        page.keyboard.press("Enter")
+        expect(page.locator("#game-control")).to_have_attribute("aria-label", "Stop the reaction time clock", timeout=9000)
+        expect(page.locator(".light.green")).to_have_count(10)
+        page.locator("#extras summary").click()
+        expect(page.locator("#result")).to_have_text("INTERRUPTED")
+        expect(page.locator(".light.green")).to_have_count(0)
+        page.wait_for_timeout(150)
+        expect(page.locator("#result")).to_have_text("INTERRUPTED")
+        page.locator("#close-settings").click()
+        expect(page.locator("#result")).to_have_text("INTERRUPTED")
+        expect(page.locator("#trials-stat")).to_have_text("1")
         with page.expect_download() as card_download_wait:
             page.locator("#extras summary").click()
             page.locator("#tab-preferences").click()
@@ -254,6 +279,15 @@ def run_engine(browser_type, base, engine_name):
         assert len(csv.splitlines()) == 2
         expect(page.locator("#extras-status")).to_have_text("Exported 1 result as CSV.")
         expect(page.locator("#extras-status")).to_be_empty(timeout=6500)
+        with page.expect_download() as backup_wait:
+            page.locator("#export-backup").click()
+        backup_download = backup_wait.value
+        assert backup_download.suggested_filename.startswith("f1-start-timer-backup-")
+        backup_bytes = Path(backup_download.path()).read_bytes()
+        content = json.loads(backup_bytes)
+        assert content["format"] == "f1-start-timer-backup" and content["version"] == 1
+        assert len(content["history"]) == 1 and content["trainingSessions"] == []
+        assert "settings" not in content and "best" not in content
         page.locator("#export-history").click()
         expect(page.locator("#extras-status")).to_have_text("Exported 1 result as CSV.")
         page.locator("#tab-preferences").click()
@@ -273,6 +307,34 @@ def run_engine(browser_type, base, engine_name):
         page.locator("#confirm-clear").click()
         expect(page.locator("#trials-stat")).to_have_text("0")
         expect(page.locator("#export-history")).to_be_disabled()
+        # v1.7 JSON backup includes classic history and completed training.
+        # Invalid files must not alter data or open the replacement dialog.
+        page.locator("#backup-file").set_input_files({
+            "name": "invalid.json", "mimeType": "application/json", "buffer": b"{bad json",
+        })
+        expect(page.locator("#extras-status")).to_contain_text("Invalid or unsupported JSON backup")
+        expect(page.locator("#backup-confirm")).to_be_hidden()
+        assert page.evaluate("localStorage.getItem('f1-start-timer:history')") is None
+        page.locator("#backup-file").set_input_files({
+            "name": "valid.json", "mimeType": "application/json", "buffer": backup_bytes,
+        })
+        expect(page.locator("#backup-confirm")).to_be_visible()
+        expect(page.locator("#backup-confirm-description")).to_contain_text("1 reactions and 0 training sessions")
+        expect(page.locator("#cancel-backup")).to_be_focused()
+        page.keyboard.press("Escape")
+        expect(page.locator("#backup-confirm")).to_be_hidden()
+        assert page.evaluate("localStorage.getItem('f1-start-timer:history')") is None
+        page.locator("#backup-file").set_input_files({
+            "name": "valid.json", "mimeType": "application/json", "buffer": backup_bytes,
+        })
+        expect(page.locator("#backup-confirm")).to_be_visible()
+        page.locator("#confirm-backup").click()
+        expect(page.locator("#trials-stat")).to_have_text("1")
+        assert len(json.loads(page.evaluate("localStorage.getItem('f1-start-timer:history')"))) == 1
+        expect(page.locator("#extras-status")).to_contain_text("Restored 1 reactions and 0 training sessions")
+        page.locator("#clear-history").click()
+        page.locator("#confirm-clear").click()
+        expect(page.locator("#trials-stat")).to_have_text("0")
         page.locator("#close-settings").click()
         page.locator("#extras summary").click()
         expect(page.locator("#extras-status")).to_be_empty()

@@ -10,12 +10,15 @@ const { PHASE, isValidRecord } = globalThis.F1StartTimerGame;
 function createUI() {
   const saved = [];
   let publish;
+  let currentPhase = PHASE.IDLE;
+  let interruptions = 0;
   let elapsed = 0;
   let nextFrameId = 0;
   const frames = new Map();
   const makeElement = () => {
     const listeners = new Map();
     return { textContent: "", checked: false, value: "100", disabled: false,
+      classList: { remove() {} }, focus() {},
       setAttribute() {}, addEventListener(type, callback) { listeners.set(type, callback); },
       fire(type) { listeners.get(type)?.(); } };
   };
@@ -72,8 +75,17 @@ function createUI() {
         loadBest: () => null,
         saveBest: (time) => { saved.push(time); return true; },
         createReactionGame({ onChange }) {
-          publish = onChange;
-          return { activate() {}, interrupt() {}, getElapsedMs: () => elapsed };
+          publish = (next) => { currentPhase = next.phase; onChange(next); };
+          return {
+            activate() {},
+            interrupt() {
+              if (![PHASE.LIGHTING, PHASE.READY].includes(currentPhase)) return false;
+              interruptions++;
+              publish({ phase: PHASE.INTERRUPTED, litCount: 0, resultMs: null });
+              return true;
+            },
+            getElapsedMs: () => elapsed,
+          };
         },
       },
     },
@@ -92,7 +104,9 @@ function createUI() {
   runInNewContext(readFileSync("src/i18n.js", "utf8"), context);
   runInNewContext(readFileSync("src/main.js", "utf8"), context);
   const result = (time) => publish({ phase: PHASE.RESULT, litCount: 0, resultMs: time });
-  return { result, elements, saved, bulbs,
+  return { result, elements, saved, bulbs, details, summary,
+    getPhase: () => currentPhase,
+    getInterruptions: () => interruptions,
     setElapsed: (value) => { elapsed = value; },
     pendingFrames: () => frames.size,
     paint: () => { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach((cb) => cb()); },
@@ -189,4 +203,54 @@ test("live timer is off by default, updates only at GO and freezes at final reac
   assert.equal(ui.pendingFrames(), 0, "switching off cancels rendering");
   ui.phase(PHASE.INTERRUPTED);
   assert.equal(ui.pendingFrames(), 0);
+});
+
+
+test("opening settings aborts lighting immediately without recording a result or resuming", () => {
+  const ui = createUI();
+  ui.phase(PHASE.LIGHTING, 3);
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("on")).length, 6);
+
+  ui.summary.fire("click");
+  assert.equal(ui.getPhase(), PHASE.INTERRUPTED);
+  assert.equal(ui.getInterruptions(), 1);
+  assert.equal(ui.elements.get("result").textContent, "INTERRUPTED");
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("on")).length, 0);
+  assert.equal(ui.elements.get("export-results").disabled, true);
+  assert.deepEqual(ui.saved, []);
+
+  ui.details.open = true;
+  ui.details.fire("toggle");
+  assert.equal(ui.getInterruptions(), 1, "the toggle fallback must not interrupt a second time");
+  ui.details.open = false;
+  ui.details.fire("toggle");
+  assert.equal(ui.getPhase(), PHASE.INTERRUPTED, "closing settings must not resume the round");
+  ui.phase(PHASE.LIGHTING, 1);
+  assert.equal(ui.getPhase(), PHASE.LIGHTING, "a new attempt can begin after closing settings");
+});
+
+test("opening settings during GO stops the live timer and optional green lights", () => {
+  const ui = createUI();
+  const live = ui.elements.get("setting-live-timer");
+  const green = ui.elements.get("setting-green-lights");
+  live.checked = true;
+  live.fire("change");
+  green.checked = true;
+  green.fire("change");
+  ui.setElapsed(254);
+  ui.phase(PHASE.READY);
+  assert.equal(ui.pendingFrames(), 1);
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("green")).length, 10);
+
+  // This also checks the fallback for a programmatic opening of <details>.
+  ui.details.open = true;
+  ui.details.fire("toggle");
+  assert.equal(ui.getPhase(), PHASE.INTERRUPTED);
+  assert.equal(ui.pendingFrames(), 0, "the displayed timer cannot continue running");
+  assert.equal(ui.bulbs.flat().filter((bulb) => bulb.classList.contains("green")).length, 0);
+  assert.equal(ui.elements.get("result").textContent, "INTERRUPTED");
+  assert.equal(ui.elements.get("export-results").disabled, true);
+  ui.setElapsed(9000);
+  ui.paint();
+  assert.equal(ui.elements.get("result").textContent, "INTERRUPTED");
 });

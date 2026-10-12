@@ -8,6 +8,7 @@ export const SITE_FILES = new Map([
   ["src/options.js", "text/javascript; charset=utf-8"],
   ["src/i18n.js", "text/javascript; charset=utf-8"],
   ["src/history.js", "text/javascript; charset=utf-8"],
+  ["src/backup.js", "text/javascript; charset=utf-8"],
   ["src/training.js", "text/javascript; charset=utf-8"],
   ["src/training-ui.js", "text/javascript; charset=utf-8"],
   ["src/main.js", "text/javascript; charset=utf-8"],

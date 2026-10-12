@@ -175,6 +175,7 @@ async function run() {
         await cdp.evaluate(await readFile("dist/src/i18n.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/history.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/training.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/backup.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/training-ui.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/result-card.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/main.js", "utf8"));
@@ -366,6 +367,22 @@ async function run() {
     assert.equal(await cdp.evaluate("document.getElementById('game-control').classList.contains('tab-navigation')"), false,
       "Focus hint must clear on blur");
 
+    // Opening settings must abort an ongoing round rather than allowing the
+    // hidden countdown to continue or recording an accidental false start.
+    await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on').length"), 2);
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open && document.activeElement?.id === 'close-settings'");
+    assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), "INTERRUPTED");
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on, .light.green').length"), 0);
+    await sleep(1200);
+    assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), "INTERRUPTED", "Settings must cancel queued light timers");
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on').length"), 0);
+    assert.equal(await cdp.evaluate("document.getElementById('export-results').disabled"), true, "An interrupted attempt must not be saved");
+    await cdp.evaluate("document.getElementById('close-settings').click()");
+    await cdp.until("!document.getElementById('extras').open && document.activeElement?.id === 'game-control'");
+    assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), "INTERRUPTED", "Dismissal must not resume the game");
+
     // Keyboard + pointer interactions at 320px, false start and full round.
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 320, height: 700, deviceScaleFactor: 1, mobile: true });
     assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), "Mobile horizontal overflow");
@@ -440,6 +457,34 @@ async function run() {
       assert.equal(selector.appearance, "none", `${id}: native arrow should be hidden`);
       assert.match(selector.image, /chevron-down\.svg/, `${id}: Bootstrap icon must be used`);
       assert.ok(selector.paddingRight >= 30, `${id}: arrow must have enough breathing room`);
+    }
+    // Backup UI accepts a real browser File, validates it and asks for confirmation.
+    assert.equal(await cdp.evaluate("document.getElementById('export-backup').disabled"), false);
+    await cdp.evaluate(`(() => {
+      const text = F1StartTimerBackup.create([{at:new Date().toISOString(),ms:215}], []);
+      globalThis.__testBackup = text;
+      const input = document.getElementById('backup-file');
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([text], 'test-backup.json', {type:'application/json'}));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    })()`);
+    await cdp.until("!document.getElementById('backup-confirm').hidden");
+    assert.match(await cdp.evaluate("document.getElementById('backup-confirm-description').textContent"), /1 reactions and 0 training sessions/);
+    await cdp.evaluate("document.getElementById('cancel-backup').click()");
+    assert.equal(await cdp.evaluate("document.getElementById('backup-confirm').hidden"), true);
+    if (!restrictedBrowser) {
+    await cdp.evaluate(`(() => {
+      const input = document.getElementById('backup-file');
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([globalThis.__testBackup], 'test-backup.json', {type:'application/json'}));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    })()`);
+    await cdp.until("!document.getElementById('backup-confirm').hidden");
+    await cdp.evaluate("document.getElementById('confirm-backup').click()");
+    assert.equal(await cdp.evaluate("document.getElementById('trials-stat').textContent"), "1");
+    assert.match(await cdp.evaluate("document.getElementById('extras-status').textContent"), /Restored 1 reactions and 0 training sessions/);
     }
     await cdp.evaluate("document.getElementById('clear-history').click()");
     assert.equal(await cdp.evaluate("document.getElementById('history-confirm').hidden"), false);
@@ -520,6 +565,16 @@ async function run() {
     assert.equal(await cdp.evaluate("document.getElementById('training-banner').hidden"), false);
     assert.equal(await cdp.evaluate("document.getElementById('training-dialog').hidden"), true);
     assert.equal(await cdp.evaluate("document.activeElement?.id"), "game-control");
+    // Opening settings during training cancels only the current light sequence;
+    // the training session stays active and does not gain a false start.
+    await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");
+    assert.equal(await cdp.evaluate("document.querySelectorAll('.light.on').length"), 2);
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open");
+    assert.equal(await cdp.evaluate("document.getElementById('result').textContent"), "INTERRUPTED");
+    assert.match(await cdp.evaluate("document.getElementById('training-banner-progress').textContent"), /0 of 5/);
+    await cdp.evaluate("document.getElementById('close-settings').click()");
+    await cdp.until("!document.getElementById('extras').open");
     // Five immediate false starts are counted, even though they are not in reaction history.
     for (let i = 0; i < 5; i++) {
       await cdp.evaluate("document.getElementById('game-control').dispatchEvent(new PointerEvent('pointerdown',{button:0,isPrimary:true,bubbles:true}))");

@@ -1,12 +1,12 @@
-/* Offline-first app shell; all paths are relative to this service worker's scope.
+ /* Offline-first app shell; all paths are relative to this service worker's scope.
  * Safe on GitHub Pages project subpaths as well as domain-root deployments. */
 "use strict";
 const CACHE_PREFIX = `f1-start-timer-${new URL(self.registration.scope).pathname.replace(/[^a-z0-9]/gi, "_")}-v`;
-const CACHE_NAME = `${CACHE_PREFIX}1.6.0`;
+const CACHE_NAME = `${CACHE_PREFIX}1.7.1`;
 const SHELL_FILES = [
   "./", "./index.html", "./manifest.webmanifest",
   "./src/style.css", "./src/game.js", "./src/options.js",
-  "./src/i18n.js", "./src/history.js", "./src/training.js",
+  "./src/i18n.js", "./src/history.js", "./src/backup.js", "./src/training.js",
   "./src/training-ui.js", "./src/result-card.js", "./src/pwa.js", "./src/main.js",
   "./public/favicon.ico", "./public/favicon-16x16.png",
   "./public/favicon-32x32.png", "./public/apple-touch-icon.png",

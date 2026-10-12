@@ -25,6 +25,7 @@
     <script defer src="./src/history.js"></script>
     <script defer src="./src/training.js"></script>
     <script defer src="./src/training-ui.js"></script>
+    <script defer src="./src/backup.js"></script>
     <script defer src="./src/result-card.js"></script>
     <script defer src="./src/main.js"></script>
     <script defer src="./src/pwa.js"></script>
@@ -149,6 +150,15 @@
                 <button class="history-action primary" id="export-history" type="button" disabled><span aria-hidden="true">↓</span><span data-i18n="export">Export CSV</span></button>
                 <button class="history-link" id="clear-history" type="button" disabled data-i18n="clearHistory">Clear history</button>
               </div>
+              <section class="backup-section" aria-labelledby="backup-title">
+                <div class="history-section-head"><h3 class="history-section-title" id="backup-title" data-i18n="backupTitle">Backup &amp; restore</h3><span class="history-pill">JSON</span></div>
+                <p class="backup-description" data-i18n="backupDescription">Save your reaction history and finished training sessions in a JSON file. Preferences and personal best are not changed by restoring.</p>
+                <div class="backup-buttons">
+                  <button id="export-backup" class="history-action" type="button" data-i18n="backupExport">Download backup</button>
+                  <button id="import-backup" class="history-action" type="button" data-i18n="backupImport">Restore from JSON</button>
+                  <input id="backup-file" class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-label="JSON backup file" data-i18n-aria-label="backupFileLabel" />
+                </div>
+              </section>
               <p class="history-privacy" data-i18n="historyPrivacy">Results stay on this device. Only the most recent 50 attempts are kept.</p>
             </section>
           </div>
@@ -158,6 +168,13 @@
               <h3 id="confirm-title" data-i18n="clearTitle">Clear reaction history?</h3>
               <p id="confirm-description" data-i18n="clearDescription">This will remove all saved attempts from this device. Your personal best will be kept.</p>
               <div class="history-confirm-buttons"><button class="history-action" id="cancel-clear" type="button" data-i18n="cancel">Cancel</button><button class="history-action danger" id="confirm-clear" type="button" data-i18n="clearHistory">Clear history</button></div>
+            </div>
+          </div>
+          <div class="history-confirm" id="backup-confirm" hidden>
+            <div class="history-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="backup-confirm-title" aria-describedby="backup-confirm-description">
+              <h3 id="backup-confirm-title" data-i18n="backupConfirmTitle">Replace saved history?</h3>
+              <p id="backup-confirm-description"></p>
+              <div class="history-confirm-buttons"><button class="history-action" id="cancel-backup" type="button" data-i18n="cancel">Cancel</button><button class="history-action danger" id="confirm-backup" type="button" data-i18n="backupReplace">Replace data</button></div>
             </div>
           </div>
         </div>

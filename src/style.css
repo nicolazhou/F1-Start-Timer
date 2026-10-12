@@ -446,3 +446,13 @@ html.training-open, html.training-open body { overflow: hidden; }
 .pwa-install-row .history-action { width: auto; flex: 0 0 auto; font-size: 13px; }
 .pwa-install-hint { font-size: 11px; color: #626972; line-height: 1.5; flex: 1 1 180px; }
 .pwa-install-row [hidden] { display: none !important; }
+
+/* Local JSON backup controls share the established Reaction History visual language. */
+.backup-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid #e9e9e9; }
+.backup-section .history-section-head { margin-bottom: 6px; }
+.backup-description { color: #747b84; font-size: 12px; line-height: 1.55; margin: 4px 0 12px; }
+.backup-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.backup-buttons .history-action { min-height: 40px; }
+.backup-buttons .history-action:focus-visible { outline: 3px solid #1457b8; outline-offset: 2px; }
+:root[data-high-contrast="true"] .backup-description { color: #323232; }
+@media (max-width: 359px) { .backup-buttons .history-action { flex: 1 1 100%; } }

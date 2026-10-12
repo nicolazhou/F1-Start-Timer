@@ -3,6 +3,7 @@
   "use strict";
   const core = globalThis.F1StartTimerGame;
   const extras = globalThis.F1StartTimerOptions;
+  const backup = globalThis.F1StartTimerBackup;
   const i18n = globalThis.F1StartTimerI18n;
   const root = document.getElementById("game-control");
   if (!root || !core || !extras || !i18n) {
@@ -187,6 +188,31 @@
       filterHistory: extras.filterHistory, sessionFor: extras.sessionFor, getSessionId: extras.currentSessionId,
       setStatus,
       onExport: () => exportCsv(),
+      onBackup: () => {
+        try {
+          const json = backup.create(history, globalThis.F1StartTimerTraining.loadSessions());
+          const url = URL.createObjectURL(new Blob([json], { type: "application/json;charset=utf-8" }));
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `f1-start-timer-backup-${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          setStatus(t("backupDownloaded"));
+        } catch { setStatus(t("backupExportFailed")); }
+      },
+      canRestore: () => !trainingUI?.active,
+      onPrepareImport: (text) => backup.parse(text),
+      onRestore: (data) => {
+        if (trainingUI?.active || !backup.restore(data)) return false;
+        if (game) game.interrupt();
+        history = extras.loadHistory();
+        latestResult = history[0]?.ms ?? null;
+        updateResultActions();
+        trainingUI?.renderLanguage();
+        return true;
+      },
       onClear: () => {
         if (!extras.clearHistory()) return false;
         history = [];
@@ -407,6 +433,11 @@
   settingsTrigger.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") settingsKeyboardOpen = true;
   });
+  // Stop the ongoing attempt synchronously, before the native <details> opens.
+  // Interrupting (rather than activating) never records a result or false start.
+  settingsTrigger.addEventListener("click", () => {
+    if (!settingsDetails.open) game.interrupt();
+  });
 
   // The native details/summary trigger keeps the panel available without JS.
   // With JS, opening it behaves as a modal: scroll locking, keyboard trapping,
@@ -421,6 +452,8 @@
     clearStatus();
     document.documentElement.classList.toggle("settings-open", settingsDetails.open);
     if (settingsDetails.open) {
+      // Covers opening <details> programmatically as well as pointer/keyboard use.
+      game.interrupt();
       settingsClose.focus({ preventScroll: true });
     } else {
       if (settingsKeyboardOpen) settingsTrigger.focus({ preventScroll: true });
