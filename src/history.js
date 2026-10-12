@@ -1,0 +1,191 @@
+/* Reaction History panel: local data only, using DOM APIs (no HTML injection). */
+(function (root) {
+  "use strict";
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const $ = (id) => document.getElementById(id);
+  const svgNode = (name, attrs = {}, content) => {
+    const element = document.createElementNS(SVG_NS, name);
+    for (const [key, value] of Object.entries(attrs)) element.setAttribute(key, String(value));
+    if (content !== undefined) element.textContent = content;
+    return element;
+  };
+  const element = (tag, className, text) => {
+    const item = document.createElement(tag);
+    if (className) item.className = className;
+    if (text !== undefined) item.textContent = text;
+    return item;
+  };
+
+  function initReactionHistory({ t, getLanguage, getHistory, getBest, formatTime, historyStats, isValidRecord, onClear, onExport, setStatus }) {
+    const tabs = { preferences: $("tab-preferences"), history: $("tab-history") };
+    const panels = { preferences: $("panel-preferences"), history: $("panel-history") };
+    const confirmOverlay = $("history-confirm");
+    const cancelButton = $("cancel-clear");
+    const confirmButton = $("confirm-clear");
+    const clearButton = $("clear-history");
+    const exportButton = $("export-history");
+    const filter = $("history-filter");
+    const chart = $("history-chart");
+    let activeTab = "history";
+
+    function selectTab(name, focus = false) {
+      activeTab = name;
+      for (const key of Object.keys(tabs)) {
+        const selected = key === name;
+        tabs[key].setAttribute("aria-selected", String(selected));
+        tabs[key].tabIndex = selected ? 0 : -1;
+        panels[key].hidden = !selected;
+      }
+      if (focus) tabs[name].focus();
+    }
+    for (const name of Object.keys(tabs)) tabs[name].addEventListener("click", () => selectTab(name));
+    $("tab-history").parentElement.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === "Home") selectTab("preferences", true);
+      else if (event.key === "End") selectTab("history", true);
+      else selectTab(activeTab === "history" ? "preferences" : "history", true);
+    });
+    filter.addEventListener("change", render);
+    exportButton.addEventListener("click", onExport);
+
+    function setTextWithUnit(target, value) {
+      target.replaceChildren();
+      if (value === null) { target.textContent = "—"; return; }
+      target.append(document.createTextNode(`${formatTime(value)} `), element("small", "", "s"));
+    }
+
+    function renderChart(entries) {
+      const ordered = entries.slice(0, 10).reverse();
+      const title = svgNode("title", {}, t("chartTitle", { count: ordered.length }));
+      const desc = svgNode("desc", {}, t("chartDescription"));
+      chart.replaceChildren(title, desc);
+      if (!ordered.length) {
+        chart.append(svgNode("text", { x: 210, y: 74, "text-anchor": "middle", fill: "#92979e", "font-size": 13 }, t("noChartData")));
+        return;
+      }
+      const values = ordered.map((item) => item.ms);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      // Dynamic axis supports unusually fast/slow results without clipping.
+      const margin = Math.max(20, (max - min) * 0.25);
+      const low = Math.max(0, Math.floor((min - margin) / 10) * 10);
+      const high = Math.max(low + 50, Math.ceil((max + margin) / 10) * 10);
+      const plot = { left: 39, right: 410, top: 16, bottom: 117 };
+      const yFor = (ms) => plot.top + (high - ms) / (high - low) * (plot.bottom - plot.top);
+      for (const tick of [0, 0.5, 1]) {
+        const ms = low + (high - low) * tick;
+        const y = yFor(ms);
+        chart.append(
+          svgNode("line", { x1: plot.left, x2: plot.right, y1: y.toFixed(1), y2: y.toFixed(1), stroke: "#ebeef1", "stroke-dasharray": "3 4" }),
+          svgNode("text", { x: 31, y: (y + 3).toFixed(1), "text-anchor": "end", "font-size": 10, fill: "#979ca3" }, String(Math.round(ms)))
+        );
+      }
+      const positions = ordered.map((attempt, i) => ({
+        x: plot.left + (plot.right - plot.left) * (ordered.length === 1 ? 0.5 : i / (ordered.length - 1)),
+        y: yFor(attempt.ms), ms: attempt.ms,
+      }));
+      const line = positions.map((pos, i) => `${i ? "L" : "M"} ${pos.x.toFixed(1)} ${pos.y.toFixed(1)}`).join(" ");
+      const first = positions[0];
+      const last = positions[positions.length - 1];
+      const gradient = svgNode("linearGradient", { id: "history-area-fill", x1: "0%", y1: "0%", x2: "0%", y2: "100%" });
+      gradient.append(svgNode("stop", { offset: "0%", "stop-color": "#e10600", "stop-opacity": ".14" }), svgNode("stop", { offset: "100%", "stop-color": "#e10600", "stop-opacity": "0" }));
+      const defs = svgNode("defs");
+      defs.append(gradient);
+      chart.append(defs,
+        svgNode("path", { d: `${line} L ${last.x.toFixed(1)} ${plot.bottom} L ${first.x.toFixed(1)} ${plot.bottom} Z`, fill: "url(#history-area-fill)" }),
+        svgNode("path", { d: line, fill: "none", stroke: "#e10600", "stroke-width": 2.6, "stroke-linecap": "round", "stroke-linejoin": "round" })
+      );
+      positions.forEach((pos, index) => {
+        const circle = svgNode("circle", { cx: pos.x.toFixed(1), cy: pos.y.toFixed(1), r: 4.6, fill: "#fff", stroke: "#e10600", "stroke-width": 2.2 });
+        circle.append(svgNode("title", {}, t("chartPoint", { count: index + 1, ms: Math.round(pos.ms) })));
+        chart.append(circle);
+      });
+    }
+
+    function formatAttemptDate(iso) {
+      const date = new Date(iso);
+      const language = getLanguage();
+      const current = new Date();
+      const isToday = date.getFullYear() === current.getFullYear() && date.getMonth() === current.getMonth() && date.getDate() === current.getDate();
+      const day = isToday ? t("today") : new Intl.DateTimeFormat(language, { month: "short", day: "numeric" }).format(date);
+      const clock = new Intl.DateTimeFormat(language, { hour: "2-digit", minute: "2-digit" }).format(date);
+      return `${day}, ${clock}`;
+    }
+
+    function renderAttempts(history, bestMs) {
+      const list = $("attempt-list");
+      if (!history.length) {
+        const empty = element("li", "history-empty");
+        empty.append(element("strong", "", t("noAttempts")), document.createTextNode(t("noAttemptsHint")));
+        list.replaceChildren(empty);
+        return;
+      }
+      const visible = filter.value === "all" ? history : history.slice(0, 3);
+      const fragment = document.createDocumentFragment();
+      visible.forEach((attempt, i) => {
+        const li = element("li", "history-attempt");
+        const number = element("span", "history-attempt-number", String(history.length - i).padStart(2, "0"));
+        const detail = element("div", "history-attempt-info");
+        detail.append(element("span", "history-attempt-title", t(i === 0 ? "latestAttempt" : "reactionTest")), element("span", "history-attempt-date", formatAttemptDate(attempt.at)));
+        const right = element("div", "history-attempt-result");
+        right.append(element("span", "history-attempt-time", `${formatTime(attempt.ms)} s`));
+        if (isValidRecord(attempt.ms) && bestMs !== null && Math.abs(attempt.ms - bestMs) < 0.00001) {
+          right.append(element("span", "history-record", t("recordBadge")));
+        }
+        li.append(number, detail, right);
+        fragment.append(li);
+      });
+      list.replaceChildren(fragment);
+    }
+
+    function render() {
+      const history = getHistory();
+      const stats = historyStats(history);
+      $("stored-count").textContent = t("storedCount", { count: stats.count, max: 50 });
+      setTextWithUnit($("best-stat"), getBest());
+      setTextWithUnit($("avg-stat"), stats.averageMs);
+      $("trials-stat").textContent = String(stats.count);
+      $("all-attempts-option").textContent = t("allAttempts", { count: stats.count });
+      filter.disabled = !stats.count;
+      exportButton.disabled = !stats.count;
+      clearButton.disabled = !stats.count;
+      renderChart(history);
+      renderAttempts(history, getBest());
+    }
+
+    function showConfirmation() {
+      if (clearButton.disabled) return;
+      confirmOverlay.hidden = false;
+      $("settings-panel-title").closest(".settings-head").inert = true;
+      $("settings-panel-title").closest(".extras-content").querySelector(".settings-body").inert = true;
+      cancelButton.focus();
+    }
+    function dismissConfirmation() {
+      if (confirmOverlay.hidden) return false;
+      confirmOverlay.hidden = true;
+      $("settings-panel-title").closest(".settings-head").inert = false;
+      $("settings-panel-title").closest(".extras-content").querySelector(".settings-body").inert = false;
+      clearButton.focus();
+      return true;
+    }
+    clearButton.addEventListener("click", showConfirmation);
+    cancelButton.addEventListener("click", dismissConfirmation);
+    confirmButton.addEventListener("click", () => {
+      if (!onClear()) { dismissConfirmation(); setStatus(t("clearFailed")); return; }
+      dismissConfirmation();
+      filter.value = "3";
+      render();
+      tabs.history.focus();
+      setStatus(t("historyCleared"));
+    });
+    selectTab("history");
+    render();
+    return {
+      render, selectTab, dismissConfirmation,
+      get confirmationOpen() { return !confirmOverlay.hidden; },
+      get confirmationPanel() { return confirmOverlay; },
+    };
+  }
+  root.F1StartTimerHistory = Object.freeze({ initReactionHistory });
+})(globalThis);

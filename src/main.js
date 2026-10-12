@@ -26,6 +26,12 @@
   const copyButton = document.getElementById("copy-result");
   const shareButton = document.getElementById("share-result");
   const exportButton = document.getElementById("export-results");
+  const settingsDetails = document.getElementById("extras");
+  const settingsTrigger = settingsDetails.querySelector("summary");
+  const settingsPanel = settingsDetails.querySelector(".extras-content");
+  const settingsClose = document.getElementById("close-settings");
+  const settingsBackdrop = document.getElementById("settings-backdrop");
+  let historyUI = null;
 
   // Optional override for non-GitHub Pages domains.
   const GITHUB_USERNAME = "nicolazhou";
@@ -85,6 +91,7 @@
     const ogDescription = document.querySelector('meta[property="og:description"]');
     if (ogDescription) ogDescription.content = t("ogDescription");
     renderGameTexts(currentView, true);
+    historyUI?.render();
   }
 
   function setStatus(message) { status.textContent = message; }
@@ -106,6 +113,22 @@
   applySettings();
   renderLanguage();
   updateResultActions();
+  if (globalThis.F1StartTimerHistory) {
+    historyUI = globalThis.F1StartTimerHistory.initReactionHistory({
+      t, getLanguage: () => activeLanguage,
+      getHistory: () => history, getBest: () => best,
+      formatTime, isValidRecord, historyStats: extras.historyStats,
+      setStatus,
+      onExport: () => exportCsv(),
+      onClear: () => {
+        if (!extras.clearHistory()) return false;
+        history = [];
+        latestResult = null;
+        updateResultActions();
+        return true;
+      },
+    });
+  }
 
   // Generate sounds locally using Web Audio; never fetch external media.
   // A browser user gesture is required to unlock audio playback.
@@ -191,6 +214,7 @@
           saveBest(best);
           bestElement.textContent = t("best", { time: formatTime(best) });
         }
+        historyUI?.render();
       }
     },
   });
@@ -234,7 +258,7 @@
       if (error?.name !== "AbortError") setStatus(t("sharingUnavailable"));
     }
   });
-  exportButton.addEventListener("click", () => {
+  function exportCsv() {
     if (!history.length) return;
     const csv = extras.csvForHistory(history, isValidRecord);
     const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
@@ -246,13 +270,62 @@
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setStatus(t(history.length === 1 ? "exportedOne" : "exportedMany", { count: history.length }));
-  });
+  }
+  exportButton.addEventListener("click", exportCsv);
 
   function activate() {
-    if (document.visibilityState === "hidden") return;
+    if (settingsDetails.open || document.visibilityState === "hidden") return;
     unlockAudio();
     game.activate();
   }
+
+  // The native details/summary trigger keeps the panel available without JS.
+  // With JS, opening it behaves as a modal: scroll locking, keyboard trapping,
+  // Escape/backdrop dismiss, and focus restored to the trigger on close.
+  function closeSettings() {
+    if (historyUI?.dismissConfirmation()) return;
+    settingsDetails.open = false;
+  }
+  settingsClose.addEventListener("click", closeSettings);
+  settingsBackdrop.addEventListener("click", closeSettings);
+  settingsDetails.addEventListener("toggle", () => {
+    document.documentElement.classList.toggle("settings-open", settingsDetails.open);
+    if (settingsDetails.open) {
+      settingsClose.focus({ preventScroll: true });
+    } else {
+      settingsTrigger.focus({ preventScroll: true });
+    }
+  });
+  function modalFocusables() {
+    const scope = historyUI?.confirmationOpen ? historyUI.confirmationPanel : settingsPanel;
+    return [...scope.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]')]
+      .filter((element) => element.getClientRects().length > 0 && !element.closest('[hidden], [inert]') && element.tabIndex !== -1);
+  }
+  document.addEventListener("keydown", (event) => {
+    if (!settingsDetails.open) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSettings();
+    } else if (event.key === "Tab") {
+      const items = modalFocusables();
+      if (!items.length) { event.preventDefault(); settingsPanel.focus(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !settingsPanel.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !settingsPanel.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  });
+  document.addEventListener("focusin", (event) => {
+    if (!settingsDetails.open) return;
+    if (historyUI?.confirmationOpen) {
+      if (!historyUI.confirmationPanel.contains(event.target)) document.getElementById("cancel-clear").focus({ preventScroll: true });
+    } else if (!settingsPanel.contains(event.target)) settingsClose.focus({ preventScroll: true });
+  });
 
   // Show the subtle focus hint only if Tab navigated into the game.
   // Enter/Space during gameplay and pointer interactions keep the classic look.

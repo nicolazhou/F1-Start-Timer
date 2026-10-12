@@ -10,6 +10,7 @@
     "dev": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.js",
     "test:browser": "npm run build && node scripts/browser-test.mjs",
+    "test:cross-browser": "npm run build && python3 scripts/cross-browser-test.py",
     "lint": "node scripts/check-source.mjs",
     "build": "node scripts/build.mjs",
     "check": "npm run test && npm run lint && npm run build && node scripts/verify-build.mjs",

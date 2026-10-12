@@ -131,6 +131,7 @@ async function run() {
         await cdp.evaluate(await readFile("dist/src/game.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/options.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/i18n.js", "utf8"));
+        await cdp.evaluate(await readFile("dist/src/history.js", "utf8"));
         await cdp.evaluate(await readFile("dist/src/main.js", "utf8"));
       } else if (navigation.errorText) {
         throw new Error(`Navigation failed for ${path}: ${navigation.errorText}`);
@@ -174,6 +175,9 @@ async function run() {
         assert.equal(creator.label, "", "Hidden creator credit must not show a placeholder username");
       }
       assert.ok(await cdp.evaluate("document.getElementById('extras') !== null"));
+      assert.equal(await cdp.evaluate("document.getElementById('tab-history')?.getAttribute('aria-selected')"), "true");
+      assert.equal(await cdp.evaluate("document.getElementById('trials-stat')?.textContent"), "0");
+      assert.equal(await cdp.evaluate("document.getElementById('export-history')?.disabled"), true);
       assert.equal(await cdp.evaluate("document.getElementById('setting-sound').checked"), false);
       assert.equal(await cdp.evaluate("document.getElementById('setting-language').value"), "auto");
       assert.equal(await cdp.evaluate("document.documentElement.lang"), "en");
@@ -187,6 +191,33 @@ async function run() {
       await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 601 });
       assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), `Horizontal overflow at ${width}x${height}`);
     }
+
+    // Mockup settings: real native disclosure -> modal with accessible gear,
+    // scrolling lock, focus containment, keyboard dismissal and focus return.
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open && document.activeElement?.id === 'close-settings'");
+    assert.equal(await cdp.evaluate("document.querySelector('.extras-content').getAttribute('role')"), "dialog");
+    assert.equal(await cdp.evaluate("document.querySelector('.extras-content').getAttribute('aria-modal')"), "true");
+    assert.equal(await cdp.evaluate("document.querySelector('.settings-gear')?.tagName === 'IMG' && document.querySelector('.settings-gear').getAttribute('src') === './public/icons/gear.svg'"), true);
+    // Restricted local sandbox navigation falls back to injected HTML where
+    // relative images cannot load; CI exercises the actual SVG over HTTP.
+    if (!restrictedBrowser) await cdp.until("document.querySelector('.settings-gear')?.complete && document.querySelector('.settings-gear')?.naturalWidth === 16");
+    assert.equal(await cdp.evaluate("document.documentElement.classList.contains('settings-open')"), true);
+    assert.equal(await cdp.evaluate("getComputedStyle(document.getElementById('settings-backdrop')).display"), "block");
+    await cdp.evaluate("document.getElementById('close-settings').click()");
+    await cdp.until("!document.getElementById('extras').open && document.activeElement?.tagName === 'SUMMARY'");
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open");
+    await cdp.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
+    await cdp.until("!document.getElementById('extras').open");
+    assert.equal(await cdp.evaluate("document.getElementById('game-control').getAttribute('aria-label')"), "Start reaction time test");
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 320, height: 700, deviceScaleFactor: 1, mobile: true });
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open");
+    assert.equal(await cdp.evaluate("document.querySelector('.extras-content').getBoundingClientRect().bottom <= innerHeight + 1"), true);
+    assert.ok(await cdp.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), "Mobile settings panel must not overflow");
+    await cdp.evaluate("document.getElementById('settings-backdrop').click()");
+    await cdp.until("!document.getElementById('extras').open");
 
     // The creator link must remain independent from gameplay.
     await cdp.evaluate("document.getElementById('creator-link').href='https://github.com/example-user'; document.getElementById('creator-link').textContent='@example-user'; document.getElementById('credits').hidden=false");
@@ -295,6 +326,25 @@ async function run() {
     const score = await cdp.evaluate("document.getElementById('result').textContent");
     assert.match(score, /^\d{2}\.\d{3}$/);
     assert.notEqual(await cdp.evaluate("document.getElementById('best').textContent"), "Your best: —");
+    // The history panel must reflect actual completed rounds without demo data.
+    assert.equal(await cdp.evaluate("document.getElementById('trials-stat').textContent"), "1");
+    assert.equal(await cdp.evaluate("document.querySelectorAll('#attempt-list .history-attempt').length"), 1);
+    assert.equal(await cdp.evaluate("document.getElementById('export-history').disabled"), false);
+    assert.equal(await cdp.evaluate("document.querySelectorAll('#history-chart circle').length"), 1);
+    await cdp.evaluate("document.querySelector('#extras summary').click()");
+    await cdp.until("document.getElementById('extras').open");
+    assert.equal(await cdp.evaluate("document.getElementById('tab-history').getAttribute('aria-selected')"), "true");
+    await cdp.evaluate("document.getElementById('tab-preferences').click()");
+    assert.equal(await cdp.evaluate("document.getElementById('panel-history').hidden"), true);
+    assert.equal(await cdp.evaluate("document.getElementById('panel-preferences').hidden"), false);
+    await cdp.evaluate("document.getElementById('tab-history').click()");
+    await cdp.evaluate("document.getElementById('clear-history').click()");
+    assert.equal(await cdp.evaluate("document.getElementById('history-confirm').hidden"), false);
+    await cdp.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
+    assert.equal(await cdp.evaluate("document.getElementById('history-confirm').hidden"), true);
+    assert.equal(await cdp.evaluate("document.getElementById('extras').open"), true);
+    await cdp.evaluate("document.getElementById('close-settings').click()");
+    await cdp.until("!document.getElementById('extras').open");
     assert.equal(await cdp.evaluate("document.getElementById('copy-result').disabled"), false);
     assert.equal(await cdp.evaluate("document.getElementById('share-result').disabled"), false);
     assert.equal(await cdp.evaluate("document.getElementById('export-results').disabled"), false);

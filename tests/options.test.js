@@ -68,3 +68,23 @@ test("sharing uses formatted recent result and personal best", () => {
     "My F1 Start Timer reaction: 00.235 s. Personal best: 00.210 s.");
   assert.match(p.shareText(240, null, game.formatTime), /no personal best yet/);
 });
+
+test("history statistics use saved valid entries and clear leaves personal best untouched", () => {
+  const initial = [
+    { at: "2026-10-11T15:00:00.000Z", ms: 184 },
+    { at: "2026-10-11T14:00:00.000Z", ms: 242 },
+    { at: "2026-10-11T13:00:00.000Z", ms: 205 },
+    { at: "invalid-date", ms: 20 },
+  ];
+  assert.deepEqual(p.historyStats(initial), { count: 3, averageMs: (184 + 242 + 205) / 3, fastestMs: 184 });
+  assert.deepEqual(p.historyStats([]), { count: 0, averageMs: null, fastestMs: null });
+  assert.deepEqual(p.historyStats(null), { count: 0, averageMs: null, fastestMs: null });
+  const storage = store({ [p.HISTORY_KEY]: JSON.stringify(initial), "f1-start-timer:best": "184" });
+  assert.equal(p.clearHistory(storage), true);
+  assert.deepEqual(p.loadHistory(storage), []);
+  assert.equal(game.loadBest(storage), 184, "clearing history must never clear best time");
+});
+
+test("history clearing fails safely when storage is restricted", () => {
+  assert.equal(p.clearHistory({ removeItem() { throw new Error("blocked"); } }), false);
+});

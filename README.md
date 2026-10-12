@@ -39,6 +39,19 @@ npm run test:browser
 
 This command builds the site automatically, then checks startup at `/` and `/f1-start-timer/`, UI state, keyboard and pointer input, jump starts, a completed round, saved record on reload, and horizontal overflow at mobile/tablet/desktop widths. Set `CHROME_BIN` to the browser executable if needed. On restricted machines where Chromium blocks navigation by administrator policy, the test instead exercises the real DOM and game logic in-browser without network navigation, and reports that limitation. **GitHub Actions executes the HTTP-based version** on its hosted runner.
 
+
+### More cross-browser testing
+
+The optional Playwright integration suite checks the **production build** in three browser engines (Chromium, Firefox, WebKit), including keyboard/Tab/Escape operation, settings and history tabs, graph and clear confirmation, translated strings, localStorage after reload, mobile and landscape widths, and full reaction rounds. It also simulates touch interaction and mobile Safari-style layout using WebKit, plus Android-style touch using Chromium. **These are engine/device emulations, not tests on physical iPhones.**
+
+```bash
+python3 -m pip install playwright==1.57.0
+python3 -m playwright install chromium firefox webkit
+npm run test:cross-browser
+```
+
+On Linux, browser runtime dependencies may also be needed (`python3 -m playwright install --with-deps chromium firefox webkit`). Run only one engine with `python3 scripts/cross-browser-test.py --browser firefox` after `npm run build`. The GitHub Actions workflow installs and runs all three on every pull request and push before deployment. Browser tooling is **test-only**; the deployed site retains zero JavaScript/npm dependencies. For the final physical-device check, manually confirm VoiceOver/Tab focus, tap targets, and viewport fit on a real iOS Safari device and Android Firefox/Chrome.
+
 Useful individual commands:
 
 ```bash
@@ -52,14 +65,14 @@ The application and build scripts have **zero npm dependencies**, so `npm instal
 
 ## TODO / Roadmap
 
-These are **planned improvements**, not features available in v1.1.0. The original minimalist lights-and-stopwatch design will remain the default.
+Implemented features are marked complete; items left unchecked are future ideas. The original minimalist lights-and-stopwatch design remains the default.
 
 - [X] **Multiple languages:** add Italian, Spanish, French and German alongside English, with a manual language switcher and an optional browser-language default.
 - [X] **Optional sound effects:** play a subtle lights-out cue, with a mute toggle and no automatic audio until user interaction.
-- [ ] **Reaction history:** show recent attempts and simple statistics (average, fastest, slowest), stored only on the device.
-- [ ] **Personalization:** provide optional settings for text size, higher contrast and reduced animations.
+- [X] **Reaction history:** personal best, mean reaction time, total saved attempts, last-10 graph, recent/all list, CSV export and confirmed history clearing, stored only on the device.
+- [X] **Personalization:** provide optional settings for text size, higher contrast and reduced animations, with the accessible settings modal from the mockup.
 - [X] **Share or export results:** let players copy or download their times without requiring accounts or sending data to a server.
-- [ ] **More cross-browser testing:** expand checks for mobile Safari, Firefox, touch interaction and keyboard accessibility.
+- [X] **More cross-browser testing:** automated Chromium, Firefox, WebKit, simulated mobile touch, responsive layout and keyboard accessibility checks; physical-device validation remains recommended.
 
 Ideas and contributions are welcome; none of these changes is required for the current game to work.
 
@@ -70,12 +83,14 @@ index.html                       Accessible game markup and social metadata
 src/style.css                    Original design and responsive rules
 src/game.js                      Reaction timer and personal-best storage
 src/main.js                      Input, light rendering and announcements
-public/                          Favicon and Apple touch icon
+src/history.js                   Reaction-history tabs, chart, metrics and confirmation
+public/                          Favicons, Apple touch icon, Bootstrap Icons gear and MIT license
 scripts/site-files.mjs          Shared public-asset allowlist and MIME types
 scripts/serve.mjs                Localhost-only allowlisted development server
 scripts/build.mjs                Dependency-free production build
 scripts/check-source.mjs         Source, syntax and HTML/CSS checks
 scripts/browser-test.mjs         Chrome/Chromium smoke and responsive tests
+scripts/cross-browser-test.py    Playwright Chromium/Firefox/WebKit and touch tests
 scripts/verify-build.mjs         Output/asset verification
 tests/                            Game, storage and server tests
 .github/workflows/pages.yml      GitHub Pages build, tests and deployment

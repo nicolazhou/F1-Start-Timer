@@ -26,6 +26,8 @@ function createUI() {
     ["credits", { hidden: true }],
     ["creator-link", makeElement()],
     ["extras-status", makeElement()],
+    ["close-settings", makeElement()],
+    ["settings-backdrop", makeElement()],
     ["setting-sound", makeElement()],
     ["setting-contrast", makeElement()],
     ["setting-motion", makeElement()],
@@ -35,6 +37,13 @@ function createUI() {
     ["share-result", makeElement()],
     ["export-results", makeElement()],
   ]);
+  const details = makeElement();
+  const summary = makeElement();
+  const panel = makeElement();
+  details.querySelector = (selector) => selector === "summary" ? summary : panel;
+  panel.querySelectorAll = () => [];
+  panel.contains = () => false;
+  elements.set("extras", details);
   const context = {
     globalThis: {
       F1StartTimerOptions: {
@@ -58,7 +67,7 @@ function createUI() {
     document: {
       getElementById: (id) => elements.get(id),
       querySelectorAll: () => [], querySelector: () => null, addEventListener() {},
-      documentElement: { dataset: {}, lang: "en" },
+      documentElement: { dataset: {}, lang: "en", classList: { toggle() {} } },
     },
     window: { addEventListener() {} },
     console,

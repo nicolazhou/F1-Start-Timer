@@ -46,6 +46,18 @@
     try { getStorage(storage).setItem(HISTORY_KEY, JSON.stringify(entries)); } catch { /* Session still works. */ }
     return entries;
   }
+  function clearHistory(storage) {
+    try { getStorage(storage).removeItem(HISTORY_KEY); return true; }
+    catch { return false; }
+  }
+  function historyStats(history) {
+    const entries = Array.isArray(history) ? history.filter(validAttempt).slice(0, MAX_HISTORY) : [];
+    return {
+      count: entries.length,
+      averageMs: entries.length ? entries.reduce((total, entry) => total + entry.ms, 0) / entries.length : null,
+      fastestMs: entries.length ? Math.min(...entries.map((entry) => entry.ms)) : null,
+    };
+  }
   function csvForHistory(history, isValidRecord) {
     const rows = ["timestamp_utc,reaction_ms,reaction_seconds,eligible_for_best"];
     for (const entry of history) {
@@ -60,6 +72,6 @@
   }
   root.F1StartTimerOptions = Object.freeze({
     SETTINGS_KEY, HISTORY_KEY, MAX_HISTORY, normalizeSettings, loadSettings, saveSettings,
-    loadHistory, recordAttempt, csvForHistory, shareText,
+    loadHistory, recordAttempt, clearHistory, historyStats, csvForHistory, shareText,
   });
 })(globalThis);

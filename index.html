@@ -19,6 +19,7 @@
     <script defer src="./src/game.js"></script>
     <script defer src="./src/options.js"></script>
     <script defer src="./src/i18n.js"></script>
+    <script defer src="./src/history.js"></script>
     <script defer src="./src/main.js"></script>
   </head>
   <body>
@@ -44,38 +45,87 @@
         <span data-i18n="createdBy">Created by</span> <a id="creator-link" target="_blank" rel="noopener noreferrer"></a>
       </p>
       <details class="extras" id="extras">
-        <summary data-i18n="settingsTitle">Settings &amp; Results</summary>
-        <div class="extras-content">
-          <fieldset>
-            <legend data-i18n="preferences">Preferences</legend>
-            <label class="setting"><input type="checkbox" id="setting-sound" /> <span data-i18n="sound">Sound effects</span></label>
-            <label class="setting"><input type="checkbox" id="setting-contrast" /> <span data-i18n="contrast">High contrast</span></label>
-            <label class="setting"><input type="checkbox" id="setting-motion" /> <span data-i18n="motion">Reduce motion</span></label>
-            <label class="setting setting-select" for="setting-scale"><span data-i18n="textSize">Text size</span>
-              <select id="setting-scale">
-                <option value="100" data-i18n="sizeDefault">Default</option>
-                <option value="125" data-i18n="sizeLarge">Large</option>
-                <option value="150" data-i18n="sizeExtraLarge">Extra large</option>
-              </select>
-            </label>
-            <label class="setting setting-select" for="setting-language"><span data-i18n="language">Language</span>
-              <select id="setting-language">
-                <option value="auto" data-i18n="autoLanguage">Automatic (browser)</option>
-                <option value="en">English</option>
-                <option value="it">Italiano</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
-                <option value="de">Deutsch</option>
-              </select>
-            </label>
-          </fieldset>
-          <div class="result-actions" aria-label="Save and share results" data-i18n-aria-label="resultsActions">
-            <button type="button" id="copy-result" disabled data-i18n="copy">Copy result</button>
-            <button type="button" id="share-result" disabled data-i18n="share">Share result</button>
-            <button type="button" id="export-results" disabled data-i18n="export">Export CSV</button>
+        <summary aria-label="Settings" data-i18n-aria-label="settingsButton">
+          <img class="settings-gear" src="./public/icons/gear.svg" width="16" height="16" alt="" aria-hidden="true" />
+          <span data-i18n="settingsButton">Settings</span>
+        </summary>
+        <div class="settings-backdrop" id="settings-backdrop" aria-hidden="true"></div>
+        <div class="extras-content" role="dialog" aria-modal="true" aria-labelledby="settings-panel-title" tabindex="-1">
+          <header class="settings-head">
+            <div class="settings-header">
+              <h2 id="settings-panel-title" data-i18n="settingsTitle">Settings &amp; Results</h2>
+              <button type="button" class="settings-close" id="close-settings" aria-label="Close settings" data-i18n-aria-label="closeSettings">&times;</button>
+            </div>
+            <div class="settings-tabs" role="tablist" aria-label="Settings sections" data-i18n-aria-label="sectionsLabel">
+              <button type="button" id="tab-preferences" class="settings-tab" role="tab" aria-controls="panel-preferences" aria-selected="false" tabindex="-1" data-i18n="preferences">Preferences</button>
+              <button type="button" id="tab-history" class="settings-tab" role="tab" aria-controls="panel-history" aria-selected="true" tabindex="0" data-i18n="reactionHistory">Reaction History</button>
+            </div>
+          </header>
+          <div class="settings-body">
+            <section id="panel-preferences" role="tabpanel" aria-labelledby="tab-preferences" tabindex="0" hidden>
+              <h3 class="history-section-title preferences-title" data-i18n="preferences">Preferences</h3>
+              <fieldset>
+                <legend class="visually-hidden" data-i18n="preferences">Preferences</legend>
+                <label class="setting setting-toggle"><span data-i18n="sound">Sound effects</span><input class="switch-control" type="checkbox" id="setting-sound" /><span class="switch-track" aria-hidden="true"></span></label>
+                <label class="setting setting-toggle"><span data-i18n="contrast">High contrast</span><input class="switch-control" type="checkbox" id="setting-contrast" /><span class="switch-track" aria-hidden="true"></span></label>
+                <label class="setting setting-toggle"><span data-i18n="motion">Reduce motion</span><input class="switch-control" type="checkbox" id="setting-motion" /><span class="switch-track" aria-hidden="true"></span></label>
+                <label class="setting setting-select" for="setting-scale"><span data-i18n="textSize">Text size</span>
+                  <select id="setting-scale">
+                    <option value="100" data-i18n="sizeDefault">Default</option>
+                    <option value="125" data-i18n="sizeLarge">Large</option>
+                    <option value="150" data-i18n="sizeExtraLarge">Extra large</option>
+                  </select>
+                </label>
+                <label class="setting setting-select" for="setting-language"><span data-i18n="language">Language</span>
+                  <select id="setting-language">
+                    <option value="auto" data-i18n="autoLanguage">Automatic (browser)</option>
+                    <option value="en">English</option>
+                    <option value="it">Italiano</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                  </select>
+                </label>
+              </fieldset>
+              <div class="result-actions" aria-label="Save and share results" data-i18n-aria-label="resultsActions">
+                <button type="button" id="copy-result" disabled data-i18n="copy">Copy result</button>
+                <button type="button" id="share-result" disabled data-i18n="share">Share result</button>
+                <button type="button" id="export-results" disabled data-i18n="export">Export CSV</button>
+              </div>
+              <p class="extras-hint" data-i18n="hint">Up to 50 recent results are kept on this device. Audio is off by default.</p>
+            </section>
+            <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0">
+              <div class="history-section-head"><h3 class="history-section-title" data-i18n="yourPerformance">Your performance</h3><span class="history-pill" id="stored-count">0 of 50 saved</span></div>
+              <div class="history-stats">
+                <div class="history-stat"><p data-i18n="personalBest">Personal best</p><strong id="best-stat">—</strong></div>
+                <div class="history-stat"><p data-i18n="average">Average</p><strong id="avg-stat">—</strong></div>
+                <div class="history-stat"><p data-i18n="attempts">Attempts</p><strong id="trials-stat">0</strong></div>
+              </div>
+              <div class="history-section-head history-trend-head"><h3 class="history-section-title" data-i18n="reactionTrend">Reaction trend</h3><span class="history-pill" data-i18n="last10">Last 10 attempts</span></div>
+              <div class="history-chart-wrap">
+                <div class="history-chart-head"><strong data-i18n="reactionTime">Reaction time</strong><span data-i18n="lowerBetter">Lower is better ↓</span></div>
+                <svg id="history-chart" viewBox="0 0 420 144" role="img" aria-label="Chart of the last ten reaction times in milliseconds" data-i18n-aria-label="chartLabel"></svg>
+                <div class="history-chart-foot"><span data-i18n="older">Older</span><span data-i18n="mostRecent">Most recent</span></div>
+              </div>
+              <div class="history-section-head history-recent-head"><h3 class="history-section-title" data-i18n="recentAttempts">Recent attempts</h3>
+                <label class="history-filter"><span data-i18n="show">Show</span><select id="history-filter" aria-label="Show recent results" data-i18n-aria-label="showRecent"><option value="3" data-i18n="last3">Last 3</option><option value="all" id="all-attempts-option">All 0</option></select></label>
+              </div>
+              <ol id="attempt-list" class="history-attempts"></ol>
+              <div class="history-footer">
+                <button class="history-action primary" id="export-history" type="button" disabled><span aria-hidden="true">↓</span><span data-i18n="export">Export CSV</span></button>
+                <button class="history-link" id="clear-history" type="button" disabled data-i18n="clearHistory">Clear history</button>
+              </div>
+              <p class="history-privacy" data-i18n="historyPrivacy">Results stay on this device. Only the most recent 50 attempts are kept.</p>
+            </section>
           </div>
-          <p class="extras-hint" data-i18n="hint">Up to 50 recent results are kept on this device. Audio is off by default.</p>
           <p id="extras-status" role="status" aria-live="polite" aria-atomic="true"></p>
+          <div class="history-confirm" id="history-confirm" hidden>
+            <div class="history-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+              <h3 id="confirm-title" data-i18n="clearTitle">Clear reaction history?</h3>
+              <p id="confirm-description" data-i18n="clearDescription">This will remove all saved attempts from this device. Your personal best will be kept.</p>
+              <div class="history-confirm-buttons"><button class="history-action" id="cancel-clear" type="button" data-i18n="cancel">Cancel</button><button class="history-action danger" id="confirm-clear" type="button" data-i18n="clearHistory">Clear history</button></div>
+            </div>
+          </div>
         </div>
       </details>
     </main>
